@@ -43,3 +43,11 @@ next-env.d.ts
 
 # reference downloads
 _ref/
+
+# OpenNext
+.open-next
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
