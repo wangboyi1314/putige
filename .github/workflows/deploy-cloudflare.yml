@@ -114,15 +114,18 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          if ! npx wrangler pages project list 2>/dev/null | grep -qw putige; then
+          # 不能用 grep putige：会误匹配 putige-worker，导致 Pages 项目从未创建
+          if curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | grep -q '"success":true'; then
+            echo "Pages 项目 putige 已存在"
+          else
+            echo "Pages 项目 putige 不存在，正在创建..."
             npx wrangler pages project create putige \
               --production-branch main \
               --compatibility-date 2026-06-25 \
               --compatibility-flag nodejs_compat_v2 \
               --compatibility-flag global_fetch_strictly_public
             echo "已创建 Pages 项目 putige"
-          else
-            echo "Pages 项目 putige 已存在"
           fi
 
       - name: Configure Pages secrets (before deploy)
