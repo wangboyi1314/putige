@@ -2,7 +2,7 @@
 
 目标地址：**https://putige.pages.dev**（不含 wangboyi1314）
 
-代码已配置 `.github/workflows/deploy-cloudflare.yml`，推送到 `main` 会自动配置 Pages 并触发部署。
+代码已配置 `.github/workflows/deploy-cloudflare.yml`，推送到 `main` 会自动部署到 **putige.pages.dev**（并同步更新 Workers 备用地址）。
 
 ## 前提：Cloudflare 上要有 Pages 项目
 

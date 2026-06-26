@@ -73,13 +73,84 @@ jobs:
           NEXT_PUBLIC_BASE_URL: https://putige.pages.dev
           PAYMENT_MODE: demo
 
-      - name: Deploy to Cloudflare Workers
+      - name: Ensure Pages project exists
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          if ! npx wrangler pages project list 2>/dev/null | grep -q "putige"; then
+            npx wrangler pages project create putige \
+              --production-branch main \
+              --compatibility-date 2026-06-25 \
+              --compatibility-flag nodejs_compat \
+              --compatibility-flag global_fetch_strictly_public
+            echo "已创建 Pages 项目 putige"
+          else
+            echo "Pages 项目 putige 已存在"
+          fi
+
+      - name: Configure Pages environment variables
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          curl -fsS -X PATCH \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "deployment_configs": {
+                "production": {
+                  "compatibility_date": "2026-06-25",
+                  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+                  "env_vars": {
+                    "DEEPSEEK_BASE_URL": { "type": "plain_text", "value": "https://api.deepseek.com" },
+                    "DEEPSEEK_MODEL": { "type": "plain_text", "value": "deepseek-chat" },
+                    "NEXT_PUBLIC_BASE_URL": { "type": "plain_text", "value": "https://putige.pages.dev" },
+                    "PAYMENT_MODE": { "type": "plain_text", "value": "demo" }
+                  }
+                }
+              }
+            }' | tee /tmp/cf-pages-patch.json
+          if ! grep -q '"success":true' /tmp/cf-pages-patch.json; then
+            echo "::error::Pages 环境变量配置失败"
+            cat /tmp/cf-pages-patch.json
+            exit 1
+          fi
+
+      - name: Prepare Pages deploy bundle
+        run: bash scripts/prepare-pages-bundle.sh
+
+      - name: Deploy to Cloudflare Pages (putige.pages.dev)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          if [ -z "$COMMIT_MSG" ]; then COMMIT_MSG="Deploy from GitHub Actions"; fi
+          npx wrangler pages deploy .open-next/pages-deploy \
+            --project-name putige \
+            --branch main \
+            --commit-hash "${{ github.sha }}" \
+            --commit-message "$COMMIT_MSG" \
+            --no-bundle
+
+      - name: Upload Pages secret
+        run: echo "$DEEPSEEK_API_KEY" | npx wrangler pages secret put DEEPSEEK_API_KEY --project-name putige
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+
+      - name: Deploy to Cloudflare Workers (backup URL)
         run: npx opennextjs-cloudflare deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      - name: Upload runtime secret
+      - name: Upload Worker runtime secret
         run: echo "$DEEPSEEK_API_KEY" | npx wrangler secret put DEEPSEEK_API_KEY
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -89,6 +160,6 @@ jobs:
       - name: Deployment info
         if: success()
         run: |
-          echo "部署完成。请访问："
-          echo "  https://putige.wangboyi1314.workers.dev"
-          echo "  或（若已配置 Pages）https://putige.pages.dev"
+          echo "部署完成！"
+          echo "  主站: https://putige.pages.dev"
+          echo "  备用: https://putige.wangboyi1314.workers.dev"
