@@ -61,6 +61,7 @@ jobs:
         run: bash scripts/build-pages-static.sh
 
       - name: Ensure Pages project exists
+        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -73,7 +74,7 @@ jobs:
             echo "Pages 项目 putige 已存在"
             exit 0
           fi
-          curl -sS -X POST "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects" \
+          CREATE=$(curl -sS -X POST "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
             -H "Content-Type: application/json" \
             -d '{
@@ -85,8 +86,13 @@ jobs:
                   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"]
                 }
               }
-            }' | tee /tmp/create-pages.json
-          grep -q '"success":true' /tmp/create-pages.json
+            }')
+          echo "$CREATE" | tee /tmp/create-pages.json
+          if echo "$CREATE" | grep -q '"success":true'; then
+            echo "已创建 Pages 项目 putige"
+          else
+            echo "::warning::创建 Pages 项目失败，继续尝试 deploy（可能已存在）"
+          fi
 
       - name: Configure Pages secrets
         env:
