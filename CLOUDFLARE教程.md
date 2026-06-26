@@ -62,7 +62,7 @@ git push
 > 若界面只有一栏 **Build command**，填：`npm run deploy`（会先构建再发布）。
 
 **Root directory**：留空 `/`  
-**Node.js version**：选 **20** 或更高（有就选 22）
+**Node.js version**：选 **22** 或更高（项目 `.node-version` 已设为 22，Wrangler 4 要求 Node 22+）
 
 ---
 
@@ -184,7 +184,7 @@ https://dash.cloudflare.com/?to=/:account/pages/new
    | Build command | `npx opennextjs-cloudflare build` |
    | Deploy command | `npx opennextjs-cloudflare deploy` |
    | Root directory | `/` |
-   | Node.js | **20**（项目已含 `.node-version`） |
+   | Node.js | **22**（项目已含 `.node-version`） |
 
 6. **环境变量**（和之前一样 5 条）：
 
