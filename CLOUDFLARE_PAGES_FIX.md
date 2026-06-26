@@ -1,33 +1,34 @@
-# putige.pages.dev 404 修复（必做）
+# putige.pages.dev 404 说明
 
-**现象**：https://putige.pages.dev 显示 404，但 https://putige.wangboyi1314.workers.dev 能打开。
+## 为什么还是 404？
 
-**原因**：Cloudflare 里 **`putige` 这个名字被旧的 Workers 项目占用了**，或 Pages 项目从未产生 **production** 部署（只有 preview），导致 `putige.pages.dev` 一直 404。GitHub Actions 上传可能显示成功，但线上仍是 404。
+1. **OpenNext 官方只支持 Workers**，不支持 Pages 直传。带 AI API 的 Next.js 不能像纯静态站那样只丢到 Pages。
+2. 你控制台里的 Pages 项目地址是 **`putige-eh2.pages.dev`**（不是 `putige.pages.dev`），说明 `putige` 子域曾被占用，Cloudflare 自动加了后缀。
+3. **`putige.pages.dev` 目前是空域名**（404），没有绑定到你的项目。
 
-## 一次性修复（约 2 分钟）
+## 现在能用的地址
 
-1. 打开 [Workers & Pages](https://dash.cloudflare.com/?to=/:account/workers-and-pages)
-
-2. **删除 Workers 类型的 `putige`（关键）**
-   - 找类型为 **Workers**、地址是 `putige.wangboyi1314.workers.dev` 的**应用程序**
-   - Settings → **Delete**（断开 Git 自动构建）
-   - ⚠️ 不要删 **putige-worker**（备用 Worker）
-   - ⚠️ 若存在 **Pages** 类型的 `putige` 且部署正常，不要删
-
-3. **确认 Pages 项目 `putige`**
-   - 类型必须是 **Pages**（不是 Workers）
-   - 若没有：**创建应用程序 → Pages → 直接上传**，项目名 **`putige`**，生产分支 **`main`**
-   - 若一直 404：可删掉 Pages 版 `putige` 后让 GitHub Actions 自动重建
-
-4. **暂停 Git 自动构建**（Pages 和 Worker 都暂停，只用 GitHub Actions）
-
-5. [GitHub Actions → Run workflow](https://github.com/wangboyi1314/putige/actions/workflows/deploy-cloudflare.yml)
-
-6. 等 3～5 分钟，访问 **https://putige.pages.dev**（应返回 HTTP 200，不是 404）
-
-## 修复后
-
-| 地址 | 用途 |
+| 地址 | 说明 |
 |------|------|
-| **https://putige.pages.dev** | 主站（对外分享） |
-| https://putige-worker.wangboyi1314.workers.dev | 备用 |
+| **https://putige.wangboyi1314.workers.dev** | OpenNext 官方部署（GitHub Actions 自动发布） |
+| https://putige-eh2.pages.dev | 旧 Pages 直传（易 522，不推荐） |
+
+## 想要干净域名（不要 wangboyi1314）
+
+OpenNext 应用需要 **自有域名** 绑到 Worker：
+
+1. 在 Cloudflare 添加你的域名（如 `putige.com`）
+2. 打开 Worker **putige** → **设置** → **域和路由** → **添加自定义域**
+3. 在 `wrangler.jsonc` 的 `vars.NEXT_PUBLIC_BASE_URL` 改成你的域名
+4. 重新跑 GitHub Actions
+
+## 若坚持用 pages.dev
+
+1. 控制台 **删除** Pages 项目 `putige`（putige-eh2 那个）
+2. 等 24 小时让 `putige.pages.dev` 释放
+3. **创建 → Pages → 直接上传**，项目名 `putige`
+4. 但 **OpenNext 全栈应用仍建议用 Workers**，纯 Pages 无法跑 AI API
+
+## 重新部署
+
+[GitHub Actions → Run workflow](https://github.com/wangboyi1314/putige/actions/workflows/deploy-cloudflare.yml)
