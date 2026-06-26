@@ -159,4 +159,4 @@ jobs:
         run: |
           echo "部署完成！"
           echo "  主站: https://putige.pages.dev"
-          echo "  备用: https://putige.wangboyi1314.workers.dev"
+          echo "  备用: https://putige-worker.wangboyi1314.workers.dev"
