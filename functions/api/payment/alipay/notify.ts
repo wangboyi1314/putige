@@ -1,5 +1,5 @@
-import { markOrderPaid } from "../../../src/lib/payment";
-import { verifyAlipayNotify } from "../../../src/lib/alipay";
+import { markOrderPaid } from "../../../_lib/payment";
+import { verifyAlipayNotify } from "../../../_lib/alipay";
 
 export const onRequestPost: PagesFunction = async (context) => {
   try {

@@ -1,5 +1,5 @@
-import { markOrderPaid } from "../../../src/lib/payment";
-import { verifyWechatNotify } from "../../../src/lib/wechat-pay";
+import { markOrderPaid } from "../../../_lib/payment";
+import { verifyWechatNotify } from "../../../_lib/wechat-pay";
 
 export const onRequestPost: PagesFunction = async (context) => {
   try {

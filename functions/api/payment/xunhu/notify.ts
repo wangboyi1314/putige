@@ -1,5 +1,5 @@
-import { getOrder, markOrderPaid, resolveOrderId } from "../../../src/lib/payment";
-import { resolveXunhuSecretByAppId, verifyXunhuNotify } from "../../../src/lib/xunhupay";
+import { getOrder, markOrderPaid, resolveOrderId } from "../../../_lib/payment";
+import { resolveXunhuSecretByAppId, verifyXunhuNotify } from "../../../_lib/xunhupay";
 
 export const onRequestPost: PagesFunction = async (context) => {
   try {

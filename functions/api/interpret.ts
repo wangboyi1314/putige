@@ -1,9 +1,8 @@
-import { buildPrompt, callDeepSeek, type DivinationType } from "../../src/lib/deepseek";
-import { envFrom, json, type PagesEnv } from "../_lib/http";
+import { buildPrompt, callDeepSeek, type DivinationType } from "../_lib/deepseek";
+import { json, type PagesEnv } from "../_lib/http";
 
 export const onRequestPost: PagesFunction<PagesEnv> = async (context) => {
   try {
-    const env = envFrom(context);
     const body = (await context.request.json()) as {
       type: DivinationType;
       data: Record<string, unknown>;
@@ -18,7 +17,7 @@ export const onRequestPost: PagesFunction<PagesEnv> = async (context) => {
     }
 
     const { system, user } = buildPrompt({ type, data, question, isPremium, masterId });
-    const interpretation = await callDeepSeek(system, user, env);
+    const interpretation = await callDeepSeek(system, user, context.env);
     return json({ interpretation });
   } catch (e) {
     console.error("Interpret API error:", e);

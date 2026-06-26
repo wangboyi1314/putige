@@ -7,17 +7,17 @@ import {
   registerTradeOrderId,
   type ProductId,
   PRODUCTS,
-} from "../../src/lib/payment";
-import { envGet } from "../../src/lib/runtime-env";
-import { alipayPrecreate, isAlipayConfigured } from "../../src/lib/alipay";
-import { createWechatNativeOrder, isWechatPayConfigured } from "../../src/lib/wechat-pay";
+} from "../../_lib/payment";
+import { envGet } from "../../_lib/runtime-env";
+import { alipayPrecreate, isAlipayConfigured } from "../../_lib/alipay";
+import { createWechatNativeOrder, isWechatPayConfigured } from "../../_lib/wechat-pay";
 import {
   createXunhuPayment,
   getXunhuAlipayChannel,
   getXunhuWechatChannel,
   isXunhuConfigured,
   sanitizeTradeOrderId,
-} from "../../src/lib/xunhupay";
+} from "../../_lib/xunhupay";
 import { envFrom, json, type PagesEnv } from "../_lib/http";
 
 export const onRequestPost: PagesFunction<PagesEnv> = async (context) => {
