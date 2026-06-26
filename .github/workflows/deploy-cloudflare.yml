@@ -54,7 +54,7 @@ jobs:
         run: npm run build
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          NEXT_PUBLIC_BASE_URL: https://putige.pages.dev
+          NEXT_PUBLIC_BASE_URL: https://putige-eh2.pages.dev
           PAYMENT_MODE: demo
 
       - name: Package Pages bundle with Functions
@@ -117,7 +117,7 @@ jobs:
                   "env_vars": {
                     "DEEPSEEK_BASE_URL": {"type":"plain_text","value":"https://api.deepseek.com"},
                     "DEEPSEEK_MODEL": {"type":"plain_text","value":"deepseek-chat"},
-                    "NEXT_PUBLIC_BASE_URL": {"type":"plain_text","value":"https://putige.pages.dev"},
+                    "NEXT_PUBLIC_BASE_URL": {"type":"plain_text","value":"https://putige-eh2.pages.dev"},
                     "PAYMENT_MODE": {"type":"plain_text","value":"demo"}
                   }
                 }
@@ -144,7 +144,11 @@ jobs:
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | tee /tmp/pages-project.json
           SUB=$(grep -o '"subdomain":"[^"]*"' /tmp/pages-project.json | head -1 | cut -d'"' -f4 || true)
           if [ -z "$SUB" ]; then SUB="putige"; fi
-          PRIMARY="https://${SUB}.pages.dev"
+          if echo "$SUB" | grep -q '\.pages\.dev$'; then
+            PRIMARY="https://${SUB}"
+          else
+            PRIMARY="https://${SUB}.pages.dev"
+          fi
           echo "pages_url=${PRIMARY}" >> "$GITHUB_OUTPUT"
           echo "Pages 地址: ${PRIMARY}"
           for url in "$PRIMARY" "https://putige.pages.dev"; do
