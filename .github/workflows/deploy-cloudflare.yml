@@ -105,14 +105,11 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
-          if [ -z "$COMMIT_MSG" ]; then COMMIT_MSG="Deploy from GitHub Actions"; fi
-          npx wrangler pages deploy .open-next/pages-deploy \
+          npx wrangler pages deploy .open-next/assets \
             --project-name putige \
             --branch main \
             --commit-hash "${{ github.sha }}" \
-            --commit-message "$COMMIT_MSG" \
-            --no-bundle
+            --commit-message "Deploy from GitHub Actions"
 
       - name: Configure Pages plain environment variables
         continue-on-error: true
