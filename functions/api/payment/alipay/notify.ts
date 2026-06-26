@@ -1,16 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
-import { markOrderPaid } from "@/lib/payment";
-import { verifyAlipayNotify } from "@/lib/alipay";
+import { markOrderPaid } from "../../../src/lib/payment";
+import { verifyAlipayNotify } from "../../../src/lib/alipay";
 
-export const runtime = "nodejs";
-
-/**
- * 支付宝异步通知
- * 应用网关: https://你的域名/api/payment/alipay/notify
- */
-export async function POST(req: NextRequest) {
+export const onRequestPost: PagesFunction = async (context) => {
   try {
-    const form = await req.formData();
+    const form = await context.request.formData();
     const params: Record<string, string> = {};
     form.forEach((v, k) => {
       params[k] = String(v);
@@ -27,4 +20,4 @@ export async function POST(req: NextRequest) {
     console.error("[alipay notify]", e);
     return new Response("failure", { status: 500 });
   }
-}
+};

@@ -16,7 +16,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -34,115 +34,126 @@ jobs:
           set -euo pipefail
           missing=0
           if [ -z "${CF_TOKEN}" ]; then
-            echo "::error::未配置 GitHub Secret: CLOUDFLARE_API_TOKEN"
+            echo "::error::未配置 CLOUDFLARE_API_TOKEN"
             missing=1
           fi
           if [ -z "${CF_ACCOUNT}" ]; then
-            echo "::error::未配置 GitHub Secret: CLOUDFLARE_ACCOUNT_ID"
+            echo "::error::未配置 CLOUDFLARE_ACCOUNT_ID"
             missing=1
           fi
           if [ -z "${DEEPSEEK_KEY}" ]; then
-            echo "::error::未配置 GitHub Secret: DEEPSEEK_API_KEY"
+            echo "::error::未配置 DEEPSEEK_API_KEY"
             missing=1
           fi
-          if [ "$missing" -ne 0 ]; then
-            exit 1
-          fi
+          [ "$missing" -eq 0 ]
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify Node.js version
-        run: |
-          major=$(node -p "process.versions.node.split('.')[0]")
-          if [ "$major" -lt 22 ]; then
-            echo "::error::Wrangler 需要 Node.js 22+"
-            exit 1
-          fi
-
-      - name: Verify Cloudflare token
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler whoami
-
-      - name: Build OpenNext bundle
-        run: npx opennextjs-cloudflare build
+      - name: Build static site (like putiyuan)
+        run: npm run build
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          DEEPSEEK_BASE_URL: https://api.deepseek.com
-          DEEPSEEK_MODEL: deepseek-chat
-          NEXT_PUBLIC_BASE_URL: https://putige.wangboyi1314.workers.dev
+          NEXT_PUBLIC_BASE_URL: https://putige.pages.dev
           PAYMENT_MODE: demo
 
-      - name: Populate remote cache
-        run: npx opennextjs-cloudflare populateCache remote
+      - name: Package Pages bundle with Functions
+        run: bash scripts/build-pages-static.sh
+
+      - name: Ensure Pages project exists
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          GET=$(curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          echo "$GET" | tee /tmp/get-pages.json
+          if echo "$GET" | grep -q '"success":true'; then
+            echo "Pages 项目 putige 已存在"
+            exit 0
+          fi
+          curl -sS -X POST "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "name": "putige",
+              "production_branch": "main",
+              "deployment_configs": {
+                "production": {
+                  "compatibility_date": "2026-06-25",
+                  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"]
+                }
+              }
+            }' | tee /tmp/create-pages.json
+          grep -q '"success":true' /tmp/create-pages.json
 
-      - name: Deploy to Cloudflare Workers (OpenNext)
-        run: npx opennextjs-cloudflare deploy
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
-      - name: Upload Worker runtime secret
-        run: echo "$DEEPSEEK_API_KEY" | npx wrangler secret put DEEPSEEK_API_KEY
+      - name: Configure Pages secrets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-
-      - name: Verify Worker deployment
-        id: verify_worker
         run: |
-          set -euo pipefail
-          URL="https://putige.wangboyi1314.workers.dev"
-          for i in 1 2 3 4 5 6; do
-            echo "=== HTTP 检查 (${i}/6) ${URL} ==="
-            code=$(curl -sS -o /tmp/worker-body.html -w "%{http_code}" "$URL" || echo "000")
-            echo "HTTP $code"
-            if [ "$code" = "200" ]; then
-              echo "Worker 已可访问"
-              exit 0
-            fi
-            if [ "$i" -lt 6 ]; then
-              sleep 20
-            fi
-          done
-          echo "::error::Worker 未返回 HTTP 200"
-          exit 1
+          echo "$DEEPSEEK_API_KEY" | npx wrangler pages secret put DEEPSEEK_API_KEY --project-name putige
+          curl -sS -X PATCH \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "production_branch": "main",
+              "deployment_configs": {
+                "production": {
+                  "compatibility_date": "2026-06-25",
+                  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+                  "env_vars": {
+                    "DEEPSEEK_BASE_URL": {"type":"plain_text","value":"https://api.deepseek.com"},
+                    "DEEPSEEK_MODEL": {"type":"plain_text","value":"deepseek-chat"},
+                    "NEXT_PUBLIC_BASE_URL": {"type":"plain_text","value":"https://putige.pages.dev"},
+                    "PAYMENT_MODE": {"type":"plain_text","value":"demo"}
+                  }
+                }
+              }
+            }' | tee /tmp/pages-env.json
 
-      - name: Check Pages subdomain (informational)
-        continue-on-error: true
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy out --project-name=putige --branch=main --commit-hash=${{ github.sha }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          wranglerVersion: "4"
+
+      - name: Verify Pages deployment
+        id: verify
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          RESP=$(curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" || echo '{}')
-          echo "$RESP" | tee /tmp/pages-info.json
-          SUB=$(echo "$RESP" | grep -o '"subdomain":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
-          if [ -n "$SUB" ]; then
-            echo "Pages 子域: https://${SUB}.pages.dev"
-            code=$(curl -sS -o /dev/null -w "%{http_code}" "https://${SUB}.pages.dev" || echo "000")
-            echo "Pages HTTP $code"
-          fi
-          code=$(curl -sS -o /dev/null -w "%{http_code}" https://putige.pages.dev || echo "000")
-          echo "putige.pages.dev HTTP $code（若 404 表示该子域未绑定到当前 Pages 项目）"
+          curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | tee /tmp/pages-project.json
+          SUB=$(grep -o '"subdomain":"[^"]*"' /tmp/pages-project.json | head -1 | cut -d'"' -f4 || true)
+          if [ -z "$SUB" ]; then SUB="putige"; fi
+          PRIMARY="https://${SUB}.pages.dev"
+          echo "pages_url=${PRIMARY}" >> "$GITHUB_OUTPUT"
+          echo "Pages 地址: ${PRIMARY}"
+          for url in "$PRIMARY" "https://putige.pages.dev"; do
+            for i in 1 2 3 4 5 6; do
+              code=$(curl -sS -o /tmp/body.html -w "%{http_code}" "$url" || echo "000")
+              echo "$url => HTTP $code"
+              if [ "$code" = "200" ]; then
+                echo "verified_url=$url" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              sleep 15
+            done
+          done
+          echo "::error::Pages 未返回 HTTP 200"
+          exit 1
 
       - name: Deployment info
         if: always() && !cancelled()
         run: |
           echo "部署完成"
-          echo "  主站（OpenNext 官方）: https://putige.wangboyi1314.workers.dev"
-          if [ "${{ steps.verify_worker.outcome }}" = "success" ]; then
-            echo "  Worker 验证通过"
-          else
-            echo "::warning::Worker 验证未通过，请查看上方日志"
-          fi
-          echo ""
-          echo "说明：OpenNext 只支持 Workers，不支持 Pages 直传。"
-          echo "putige.pages.dev 若仍 404，请在控制台删除旧 Pages 项目后重建，或绑定自有域名。"
+          echo "  主站: ${{ steps.verify.outputs.verified_url || steps.verify.outputs.pages_url || 'https://putige.pages.dev' }}"

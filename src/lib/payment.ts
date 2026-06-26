@@ -123,24 +123,29 @@ export function getOrder(orderId: string): Order | undefined {
   return orders.get(orderId);
 }
 
-export function isDemoMode(): boolean {
-  return process.env.PAYMENT_MODE === "demo";
+import type { RuntimeEnv } from "./runtime-env";
+import { envGet } from "./runtime-env";
+
+function paymentMode(runtimeEnv?: RuntimeEnv): string | undefined {
+  return envGet("PAYMENT_MODE", runtimeEnv);
+}
+
+export function isDemoMode(runtimeEnv?: RuntimeEnv): boolean {
+  return paymentMode(runtimeEnv) === "demo";
 }
 
 /** 个人收款码：展示静态码，用户手动确认 */
-export function isQrPaymentMode(): boolean {
-  return process.env.PAYMENT_MODE === "qr";
+export function isQrPaymentMode(runtimeEnv?: RuntimeEnv): boolean {
+  return paymentMode(runtimeEnv) === "qr";
 }
 
 /** 微信/支付宝官方商户 API */
-export function isMerchantMode(): boolean {
-  return process.env.PAYMENT_MODE === "merchant";
+export function isMerchantMode(runtimeEnv?: RuntimeEnv): boolean {
+  return paymentMode(runtimeEnv) === "merchant";
 }
 
 /** 虎皮椒等聚合支付：个人可接入，自动回调 */
-export function isXunhuMode(): boolean {
-  return (
-    process.env.PAYMENT_MODE === "xunhu" ||
-    process.env.PAYMENT_MODE === "aggregator"
-  );
+export function isXunhuMode(runtimeEnv?: RuntimeEnv): boolean {
+  const mode = paymentMode(runtimeEnv);
+  return mode === "xunhu" || mode === "aggregator";
 }

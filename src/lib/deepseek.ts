@@ -84,16 +84,20 @@ ${JSON.stringify(req.data, null, 2)}`;
   return { system, user };
 }
 
+import type { RuntimeEnv } from "./runtime-env";
+import { envGet } from "./runtime-env";
+
 export async function callDeepSeek(
   system: string,
-  user: string
+  user: string,
+  runtimeEnv?: RuntimeEnv
 ): Promise<string> {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
+  const apiKey = envGet("DEEPSEEK_API_KEY", runtimeEnv);
   if (!apiKey) {
     return generateFallbackInterpretation(user);
   }
 
-  const baseUrl = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
+  const baseUrl = envGet("DEEPSEEK_BASE_URL", runtimeEnv) || "https://api.deepseek.com";
 
   const res = await fetch(`${baseUrl}/v1/chat/completions`, {
     method: "POST",
@@ -102,7 +106,7 @@ export async function callDeepSeek(
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
+      model: envGet("DEEPSEEK_MODEL", runtimeEnv) || "deepseek-chat",
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },

@@ -1,4 +1,3 @@
-import { NextRequest, NextResponse } from "next/server";
 import {
   createOrder,
   isDemoMode,
@@ -8,35 +7,38 @@ import {
   registerTradeOrderId,
   type ProductId,
   PRODUCTS,
-} from "@/lib/payment";
-import { alipayPrecreate, isAlipayConfigured } from "@/lib/alipay";
-import { createWechatNativeOrder, isWechatPayConfigured } from "@/lib/wechat-pay";
+} from "../../src/lib/payment";
+import { envGet } from "../../src/lib/runtime-env";
+import { alipayPrecreate, isAlipayConfigured } from "../../src/lib/alipay";
+import { createWechatNativeOrder, isWechatPayConfigured } from "../../src/lib/wechat-pay";
 import {
   createXunhuPayment,
   getXunhuAlipayChannel,
   getXunhuWechatChannel,
   isXunhuConfigured,
   sanitizeTradeOrderId,
-} from "@/lib/xunhupay";
+} from "../../src/lib/xunhupay";
+import { envFrom, json, type PagesEnv } from "../_lib/http";
 
-export async function POST(req: NextRequest) {
+export const onRequestPost: PagesFunction<PagesEnv> = async (context) => {
   try {
-    const body = (await req.json()) as {
+    const env = envFrom(context);
+    const body = (await context.request.json()) as {
       productId: ProductId;
       payChannel?: "wechat" | "alipay";
     };
     const { productId, payChannel = "wechat" } = body;
 
     if (!productId || !PRODUCTS[productId]) {
-      return NextResponse.json({ error: "无效的商品" }, { status: 400 });
+      return json({ error: "无效的商品" }, 400);
     }
 
     const order = createOrder(productId);
     const product = PRODUCTS[productId];
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, "");
+    const baseUrl = envGet("NEXT_PUBLIC_BASE_URL", env)?.replace(/\/$/, "");
 
-    if (isDemoMode()) {
-      return NextResponse.json({
+    if (isDemoMode(env)) {
+      return json({
         orderId: order.id,
         amount: order.amount,
         demoMode: true,
@@ -44,18 +46,15 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (isXunhuMode()) {
+    if (isXunhuMode(env)) {
       if (!isXunhuConfigured()) {
-        return NextResponse.json(
-          {
-            error:
-              "虎皮椒未配置：请在环境变量中设置 XUNHU_APP_ID 和 XUNHU_APP_SECRET，详见 DEPLOY.md",
-          },
-          { status: 503 }
+        return json(
+          { error: "虎皮椒未配置：请设置 XUNHU_APP_ID 和 XUNHU_APP_SECRET" },
+          503
         );
       }
       if (!baseUrl) {
-        return NextResponse.json({ error: "缺少 NEXT_PUBLIC_BASE_URL" }, { status: 500 });
+        return json({ error: "缺少 NEXT_PUBLIC_BASE_URL" }, 500);
       }
 
       const channel =
@@ -73,19 +72,19 @@ export async function POST(req: NextRequest) {
 
       registerTradeOrderId(sanitizeTradeOrderId(order.id), order.id);
 
-      return NextResponse.json({
+      return json({
         orderId: order.id,
         amount: order.amount,
         xunhuMode: true,
-        payChannel: payChannel,
+        payChannel,
         payUrl: xunhu.url,
         qrUrl: xunhu.urlQrcode,
         pollUrl: `/api/payment/status?orderId=${order.id}`,
       });
     }
 
-    if (isQrPaymentMode()) {
-      return NextResponse.json({
+    if (isQrPaymentMode(env)) {
+      return json({
         orderId: order.id,
         amount: order.amount,
         demoMode: false,
@@ -94,7 +93,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (isMerchantMode()) {
+    if (isMerchantMode(env)) {
       let wechatCodeUrl: string | undefined;
       let alipayQrCode: string | undefined;
 
@@ -125,16 +124,10 @@ export async function POST(req: NextRequest) {
       }
 
       if (!wechatCodeUrl && !alipayQrCode) {
-        return NextResponse.json(
-          {
-            error:
-              "官方商户支付未就绪：请配置 WECHAT_PAY_* / ALIPAY_*，或改用 PAYMENT_MODE=xunhu",
-          },
-          { status: 503 }
-        );
+        return json({ error: "官方商户支付未就绪" }, 503);
       }
 
-      return NextResponse.json({
+      return json({
         orderId: order.id,
         amount: order.amount,
         merchantMode: true,
@@ -144,15 +137,9 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json(
-      { error: "未知支付模式，请设置 PAYMENT_MODE=demo|qr|xunhu|merchant" },
-      { status: 400 }
-    );
+    return json({ error: "未知支付模式" }, 400);
   } catch (e) {
     console.error("Payment create error:", e);
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "创建订单失败" },
-      { status: 500 }
-    );
+    return json({ error: e instanceof Error ? e.message : "创建订单失败" }, 500);
   }
-}
+};

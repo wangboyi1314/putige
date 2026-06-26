@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "build:cloudflare": "opennextjs-cloudflare build",
+    "build:pages": "npm run build && bash scripts/build-pages-static.sh",
     "dev": "next dev",
     "start": "next start",
     "lint": "eslint",
@@ -22,6 +22,7 @@
     "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260626.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
