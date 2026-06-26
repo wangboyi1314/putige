@@ -9,5 +9,6 @@ fi
 
 rm -rf out/functions
 cp -r functions out/functions
+rm -f out/functions/tsconfig.json 2>/dev/null || true
 
 echo "Pages static bundle ready in out/ ($(find out -type f | wc -l) files)"

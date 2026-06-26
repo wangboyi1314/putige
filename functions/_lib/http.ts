@@ -1,6 +1,4 @@
-import type { RuntimeEnv } from "../../src/lib/runtime-env";
-
-export interface PagesEnv extends RuntimeEnv {
+export interface PagesEnv {
   DEEPSEEK_API_KEY?: string;
   DEEPSEEK_BASE_URL?: string;
   DEEPSEEK_MODEL?: string;
@@ -8,6 +6,7 @@ export interface PagesEnv extends RuntimeEnv {
   NEXT_PUBLIC_BASE_URL?: string;
   XUNHU_APP_ID?: string;
   XUNHU_APP_SECRET?: string;
+  [key: string]: string | undefined;
 }
 
 export function json(data: unknown, status = 200): Response {

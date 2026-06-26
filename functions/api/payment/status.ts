@@ -1,4 +1,4 @@
-import { getOrder } from "../../../_lib/payment";
+import { getOrder } from "../../_lib/payment";
 import { json } from "../../_lib/http";
 
 export const onRequestGet: PagesFunction = async (context) => {
