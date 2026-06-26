@@ -77,6 +77,24 @@ jobs:
           NEXT_PUBLIC_BASE_URL: https://putige.pages.dev
           PAYMENT_MODE: demo
 
+      - name: Diagnose Cloudflare project conflict
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          echo "=== Pages 项目 putige ==="
+          curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | tee /tmp/pages-project.json
+          echo ""
+          echo "=== Workers 脚本（检查是否仍有 putige 占用名称）==="
+          curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | tee /tmp/workers-scripts.json
+          if grep -q '"id":"putige"' /tmp/workers-scripts.json 2>/dev/null; then
+            echo "::warning::仍存在 Worker 脚本 putige，可能与 Pages 项目 putige 冲突，导致 putige.pages.dev 404"
+            echo "::warning::请在 Cloudflare 控制台删除旧 Worker putige，仅保留 Pages putige + Worker putige-worker"
+          fi
+
       - name: Ensure Pages project exists
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -118,9 +136,19 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige/deployments?env=production" \
+          set -euo pipefail
+          curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige/deployments" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | tee /tmp/pages-deployments.json
-          curl -sfI https://putige.pages.dev | head -8 || echo "::warning::putige.pages.dev 仍不可访问，请在 Cloudflare 控制台确认 putige 为 Pages（非 Workers）项目"
+          echo ""
+          echo "=== HTTP 检查 ==="
+          curl -sI https://putige.pages.dev | head -10 | tee /tmp/pages-http.txt
+          if grep -q "404" /tmp/pages-http.txt; then
+            echo "::error::putige.pages.dev 仍返回 404"
+            echo "::error::请在 Cloudflare 控制台：1) 删除旧 Worker 项目 putige  2) 确认 Pages 项目 putige 存在  3) 暂停 Pages/Workers 的 Git 自动构建  4) 重新 Run workflow"
+            echo "::error::详见仓库 CLOUDFLARE_PAGES_FIX.md"
+            exit 1
+          fi
+          echo "putige.pages.dev 已可访问"
 
       - name: Configure Pages plain environment variables
         continue-on-error: true
