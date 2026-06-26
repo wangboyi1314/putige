@@ -38,6 +38,26 @@
 2. **Create Token** → 模板选 **Edit Cloudflare Workers**，并额外勾选 **Account / Cloudflare Pages / Edit**
 3. 创建后复制 Token → 填入 `CLOUDFLARE_API_TOKEN`
 
+> **不要用** Cloudflare 项目 Settings 里的 **build token**（常以 `cfut_` 开头）。那是给 Cloudflare 自己构建用的，GitHub Actions 里 `wrangler whoami` 会失败。
+
+### 排错：Run #9 卡在「Verify Cloudflare token」
+
+说明三个 Secret 都已填写，但 **Token 不对或权限不够**。请：
+
+1. 打开 [GitHub Secrets](https://github.com/wangboyi1314/putige/settings/secrets/actions)
+2. 编辑 `CLOUDFLARE_API_TOKEN`，换成新创建的 **Custom Token**（见上）
+3. 确认 `CLOUDFLARE_ACCOUNT_ID` = `70ebb96ad3d3a7c5e308a26ac50862dc`
+4. Actions → **Deploy to Cloudflare** → **Run workflow**
+
+### workers.dev 与 pages.dev
+
+| 部署方式 | 地址 |
+|----------|------|
+| GitHub Actions（当前 workflow） | `https://putige.wangboyi1314.workers.dev` |
+| Cloudflare **Pages** 项目名 `putige` | `https://putige.pages.dev`（无用户名） |
+
+要 **putige.pages.dev**：在 Cloudflare 创建 **Pages** 项目并连接 Git（见 `CLOUDFLARE教程.md`），或先让 GitHub Actions 部署成功后再在 Cloudflare 控制台绑定域名。
+
 ### 可选：修改公网地址
 
 **Settings → Secrets and variables → Actions → Variables** 添加：
