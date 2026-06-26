@@ -21,141 +21,27 @@ jobs:
           node-version-file: .node-version
           cache: npm
 
-      - name: Configure Cloudflare Workers Builds
-        env:
-          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          DEEPSEEK_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-        run: |
-          set -euo pipefail
+      - name: Install dependencies
+        run: npm ci
 
-          WORKER_TAG=$(curl -fsS \
-            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/workers/scripts" \
-            -H "Authorization: Bearer ${CF_TOKEN}" \
-            | jq -r '.result[] | select(.id=="putige") | .tag' | head -n1)
-
-          if [ -z "$WORKER_TAG" ] || [ "$WORKER_TAG" = "null" ]; then
-            echo "::error::未找到 Worker putige，请先在 Cloudflare 连接 GitHub 仓库"
-            exit 1
-          fi
-
-          TRIGGER_UUID=$(curl -fsS \
-            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/builds/workers/${WORKER_TAG}/triggers" \
-            -H "Authorization: Bearer ${CF_TOKEN}" \
-            | jq -r '.result[] | select(.branch_includes[]? == "main") | .trigger_uuid' | head -n1)
-
-          if [ -z "$TRIGGER_UUID" ] || [ "$TRIGGER_UUID" = "null" ]; then
-            TRIGGER_UUID=$(curl -fsS \
-              "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/builds/workers/${WORKER_TAG}/triggers" \
-              -H "Authorization: Bearer ${CF_TOKEN}" \
-              | jq -r '.result[0].trigger_uuid')
-          fi
-
-          if [ -z "$TRIGGER_UUID" ] || [ "$TRIGGER_UUID" = "null" ]; then
-            echo "::error::未找到 putige 的构建触发器"
-            exit 1
-          fi
-
-          echo "Worker tag: ${WORKER_TAG}"
-          echo "Trigger: ${TRIGGER_UUID}"
-
-          curl -fsS -X PATCH \
-            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/builds/triggers/${TRIGGER_UUID}" \
-            -H "Authorization: Bearer ${CF_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "build_command": "npx opennextjs-cloudflare build",
-              "deploy_command": "npx opennextjs-cloudflare deploy"
-            }'
-
-          curl -fsS -X PATCH \
-            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/builds/triggers/${TRIGGER_UUID}/environment_variables" \
-            -H "Authorization: Bearer ${CF_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "$(jq -n \
-              --arg key "${DEEPSEEK_KEY}" \
-              '{
-                DEEPSEEK_API_KEY: {value: $key, is_secret: true},
-                DEEPSEEK_BASE_URL: {value: "https://api.deepseek.com", is_secret: false},
-                DEEPSEEK_MODEL: {value: "deepseek-chat", is_secret: false},
-                NEXT_PUBLIC_BASE_URL: {value: "https://putige.pages.dev", is_secret: false},
-                PAYMENT_MODE: {value: "demo", is_secret: false}
-              }')"
-
-      - name: Build and deploy on GitHub Actions
-        run: |
-          npm ci
-          npx opennextjs-cloudflare build
-          npx opennextjs-cloudflare deploy
+      - name: Build OpenNext bundle
+        run: npx opennextjs-cloudflare build
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           DEEPSEEK_BASE_URL: https://api.deepseek.com
           DEEPSEEK_MODEL: deepseek-chat
           NEXT_PUBLIC_BASE_URL: https://putige.pages.dev
           PAYMENT_MODE: demo
+
+      - name: Deploy to Cloudflare Workers
+        run: npx opennextjs-cloudflare deploy
+        env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      - name: Sync Pages project (putige.pages.dev)
-        if: success()
+      - name: Upload runtime secret
+        run: echo "$DEEPSEEK_API_KEY" | npx wrangler secret put DEEPSEEK_API_KEY
         env:
-          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          DEEPSEEK_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-        run: |
-          set -euo pipefail
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/pages/projects/putige" \
-            -H "Authorization: Bearer ${CF_TOKEN}")
-          if [ "$STATUS" != "200" ]; then
-            echo "Pages 项目 putige 不存在，跳过（Worker 已部署）"
-            exit 0
-          fi
-          curl -fsS -X PATCH \
-            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/pages/projects/putige" \
-            -H "Authorization: Bearer ${CF_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "$(jq -n --arg key "${DEEPSEEK_KEY}" '{
-              build_config: {
-                build_command: "npx opennextjs-cloudflare build",
-                destination_dir: "",
-                root_dir: "/"
-              },
-              deployment_configs: {
-                production: {
-                  env_vars: {
-                    DEEPSEEK_API_KEY: {type: "secret_text", value: $key},
-                    DEEPSEEK_BASE_URL: {type: "plain_text", value: "https://api.deepseek.com"},
-                    DEEPSEEK_MODEL: {type: "plain_text", value: "deepseek-chat"},
-                    NEXT_PUBLIC_BASE_URL: {type: "plain_text", value: "https://putige.pages.dev"},
-                    PAYMENT_MODE: {type: "plain_text", value: "demo"}
-                  }
-                }
-              }
-            }')"
-          curl -fsS -X POST \
-            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/pages/projects/putige/deployments" \
-            -H "Authorization: Bearer ${CF_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d '{"branch":"main"}' || true
-
-      - name: Trigger Cloudflare Workers rebuild
-        if: success()
-        env:
-          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          set -euo pipefail
-          WORKER_TAG=$(curl -fsS \
-            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/workers/scripts" \
-            -H "Authorization: Bearer ${CF_TOKEN}" \
-            | jq -r '.result[] | select(.id=="putige") | .tag' | head -n1)
-          TRIGGER_UUID=$(curl -fsS \
-            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/builds/workers/${WORKER_TAG}/triggers" \
-            -H "Authorization: Bearer ${CF_TOKEN}" \
-            | jq -r '.result[] | select(.branch_includes[]? == "main") | .trigger_uuid' | head -n1)
-          curl -fsS -X POST \
-            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/builds/triggers/${TRIGGER_UUID}/builds" \
-            -H "Authorization: Bearer ${CF_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d '{"branch":"main"}' || true
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
