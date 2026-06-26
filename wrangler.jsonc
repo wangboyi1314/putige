@@ -2,7 +2,6 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"main": ".open-next/worker.js",
 	"name": "putige",
-	"workers_dev": false,
 	"compatibility_date": "2026-06-25",
 	"vars": {
 		"DEEPSEEK_BASE_URL": "https://api.deepseek.com",
@@ -17,11 +16,5 @@
 	"assets": {
 		"directory": ".open-next/assets",
 		"binding": "ASSETS"
-	},
-	"services": [
-		{
-			"binding": "WORKER_SELF_REFERENCE",
-			"service": "putige"
-		}
-	]
+	}
 }
