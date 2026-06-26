@@ -79,11 +79,11 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          if ! npx wrangler pages project list 2>/dev/null | grep -q "putige"; then
+          if ! npx wrangler pages project list 2>/dev/null | grep -qw putige; then
             npx wrangler pages project create putige \
               --production-branch main \
               --compatibility-date 2026-06-25 \
-              --compatibility-flag nodejs_compat \
+              --compatibility-flag nodejs_compat_v2 \
               --compatibility-flag global_fetch_strictly_public
             echo "已创建 Pages 项目 putige"
           else
@@ -105,11 +105,15 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
+          set -euo pipefail
           npx wrangler pages deploy .open-next/assets \
             --project-name putige \
             --branch main \
             --commit-hash "${{ github.sha }}" \
-            --commit-message "Deploy from GitHub Actions"
+            --commit-message "Deploy from GitHub Actions" \
+            2>&1 | tee /tmp/pages-deploy.log
+          grep -E 'https://[^ ]+\.pages\.dev' /tmp/pages-deploy.log || true
+          curl -sfI https://putige.pages.dev | head -5 || echo "::warning::putige.pages.dev 尚未响应，可能需等待 1-2 分钟"
 
       - name: Configure Pages plain environment variables
         continue-on-error: true
@@ -148,4 +152,4 @@ jobs:
         run: |
           echo "部署完成！"
           echo "  主站: https://putige.pages.dev"
-          echo "  备用: https://putige.wangboyi1314.workers.dev"
+          echo "  备用: https://putige-worker.wangboyi1314.workers.dev"
