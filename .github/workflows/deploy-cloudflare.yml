@@ -119,6 +119,29 @@ jobs:
           echo "$GET" | tee /tmp/get-pages.json
           if echo "$GET" | grep -q '"success":true'; then
             echo "Pages 项目 putige 已存在"
+            if echo "$GET" | grep -q '"type":"github"'; then
+              echo "检测到 Git 集成，关闭自动构建以免与 Actions 冲突..."
+              PATCH=$(curl -sS -X PATCH "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige" \
+                -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d '{
+                  "production_branch": "main",
+                  "source": {
+                    "type": "github",
+                    "config": {
+                      "deployments_enabled": false,
+                      "production_deployments_enabled": false,
+                      "preview_deployment_setting": "none"
+                    }
+                  }
+                }')
+            else
+              PATCH=$(curl -sS -X PATCH "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige" \
+                -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d '{"production_branch":"main"}')
+            fi
+            echo "$PATCH" | tee /tmp/patch-pages.json
             exit 0
           fi
           echo "Pages 项目 putige 不存在，正在创建..."
@@ -165,19 +188,36 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy .open-next/assets --project-name=putige
+          command: pages deploy .open-next/assets --project-name=putige --branch=main --commit-hash=${{ github.sha }} --commit-message="Deploy ${{ github.sha }}"
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           wranglerVersion: "4"
 
-      - name: Verify Pages deployment
+      - name: Confirm Pages production deployment
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige/deployments" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | tee /tmp/pages-deployments.json
+          curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | tee /tmp/pages-project-after.json
           echo ""
+          curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige/deployments?per_page=5" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | tee /tmp/pages-deployments.json
+          if grep -q '"canonical_deployment":null' /tmp/pages-project-after.json; then
+            echo "::warning::尚无 canonical_deployment（生产部署），putige.pages.dev 可能仍为 404"
+          fi
+          if ! grep -q '"environment":"production"' /tmp/pages-deployments.json; then
+            echo "::warning::最近部署列表中未见 production 环境，请检查生产分支是否为 main"
+          fi
+
+      - name: Verify Pages deployment
+        continue-on-error: true
+        id: verify_pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
           for i in 1 2 3 4 5 6; do
             echo "=== HTTP 检查 (${i}/6) ==="
             curl -sI https://putige.pages.dev | head -10 | tee /tmp/pages-http.txt
@@ -190,9 +230,9 @@ jobs:
               sleep 30
             fi
           done
-          echo "::error::putige.pages.dev 仍返回 404"
-          echo "::error::请在 Cloudflare 控制台确认：Pages 项目 putige 存在，且已暂停 Git 自动构建"
-          echo "::error::详见 CLOUDFLARE_PAGES_FIX.md"
+          echo "::warning::putige.pages.dev 仍返回 404，继续部署 Worker 备用地址"
+          echo "::warning::请在 Cloudflare 控制台确认：Pages 项目 putige 存在，且已暂停 Git 自动构建"
+          echo "::warning::详见 CLOUDFLARE_PAGES_FIX.md"
           exit 1
 
       - name: Configure Pages plain environment variables
@@ -233,3 +273,6 @@ jobs:
           echo "部署完成！"
           echo "  主站: https://putige.pages.dev"
           echo "  备用: https://putige-worker.wangboyi1314.workers.dev"
+          if [ "${{ steps.verify_pages.outcome }}" != "success" ]; then
+            echo "::warning::Pages 主站验证未通过，请先用备用地址或按 CLOUDFLARE_PAGES_FIX.md 处理"
+          fi
