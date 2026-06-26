@@ -91,8 +91,21 @@ jobs:
           curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | tee /tmp/workers-scripts.json
           if grep -q '"id":"putige"' /tmp/workers-scripts.json 2>/dev/null; then
-            echo "::warning::仍存在 Worker 脚本 putige，可能与 Pages 项目 putige 冲突，导致 putige.pages.dev 404"
-            echo "::warning::请在 Cloudflare 控制台删除旧 Worker putige，仅保留 Pages putige + Worker putige-worker"
+            echo "::warning::仍存在 Worker 脚本 putige，可能与 Pages 项目 putige 冲突"
+          fi
+
+      - name: Remove conflicting Worker putige
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          if grep -q '"id":"putige"' /tmp/workers-scripts.json 2>/dev/null; then
+            echo "正在删除冲突的 Worker putige（释放 putige.pages.dev）..."
+            npx wrangler delete putige --force
+            echo "已删除 Worker putige"
+          else
+            echo "无冲突 Worker putige，跳过删除"
           fi
 
       - name: Ensure Pages project exists
@@ -140,15 +153,22 @@ jobs:
           curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige/deployments" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | tee /tmp/pages-deployments.json
           echo ""
-          echo "=== HTTP 检查 ==="
-          curl -sI https://putige.pages.dev | head -10 | tee /tmp/pages-http.txt
-          if grep -q "404" /tmp/pages-http.txt; then
-            echo "::error::putige.pages.dev 仍返回 404"
-            echo "::error::请在 Cloudflare 控制台：1) 删除旧 Worker 项目 putige  2) 确认 Pages 项目 putige 存在  3) 暂停 Pages/Workers 的 Git 自动构建  4) 重新 Run workflow"
-            echo "::error::详见仓库 CLOUDFLARE_PAGES_FIX.md"
-            exit 1
-          fi
-          echo "putige.pages.dev 已可访问"
+          for i in 1 2 3 4 5 6; do
+            echo "=== HTTP 检查 (${i}/6) ==="
+            curl -sI https://putige.pages.dev | head -10 | tee /tmp/pages-http.txt
+            if ! grep -q "404" /tmp/pages-http.txt; then
+              echo "putige.pages.dev 已可访问"
+              exit 0
+            fi
+            if [ "$i" -lt 6 ]; then
+              echo "仍 404，等待 30 秒后重试..."
+              sleep 30
+            fi
+          done
+          echo "::error::putige.pages.dev 仍返回 404"
+          echo "::error::请在 Cloudflare 控制台确认：Pages 项目 putige 存在，且已暂停 Git 自动构建"
+          echo "::error::详见 CLOUDFLARE_PAGES_FIX.md"
+          exit 1
 
       - name: Configure Pages plain environment variables
         continue-on-error: true
