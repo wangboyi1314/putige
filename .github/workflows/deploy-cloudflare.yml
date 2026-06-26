@@ -21,8 +21,39 @@ jobs:
           node-version-file: .node-version
           cache: npm
 
+      - name: Check required secrets
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEEPSEEK_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          set -euo pipefail
+          missing=0
+          if [ -z "${CF_TOKEN}" ]; then
+            echo "::error::未配置 GitHub Secret: CLOUDFLARE_API_TOKEN"
+            missing=1
+          fi
+          if [ -z "${CF_ACCOUNT}" ]; then
+            echo "::error::未配置 GitHub Secret: CLOUDFLARE_ACCOUNT_ID（填 70ebb96ad3d3a7c5e308a26ac50862dc）"
+            missing=1
+          fi
+          if [ -z "${DEEPSEEK_KEY}" ]; then
+            echo "::error::未配置 GitHub Secret: DEEPSEEK_API_KEY"
+            missing=1
+          fi
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+          echo "Secrets 已配置（Token 长度 ${#CF_TOKEN} 字符）"
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Verify Cloudflare token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler whoami
 
       - name: Build OpenNext bundle
         run: npx opennextjs-cloudflare build
@@ -45,3 +76,10 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+
+      - name: Deployment info
+        if: success()
+        run: |
+          echo "部署完成。请访问："
+          echo "  https://putige.wangboyi1314.workers.dev"
+          echo "  或（若已配置 Pages）https://putige.pages.dev"

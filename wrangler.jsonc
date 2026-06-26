@@ -2,6 +2,7 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"main": ".open-next/worker.js",
 	"name": "putige",
+	"account_id": "70ebb96ad3d3a7c5e308a26ac50862dc",
 	"compatibility_date": "2026-06-25",
 	"vars": {
 		"DEEPSEEK_BASE_URL": "https://api.deepseek.com",

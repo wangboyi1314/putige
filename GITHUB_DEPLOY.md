@@ -18,7 +18,7 @@
 
 打开：**https://github.com/wangboyi1314/putige/settings/secrets/actions**
 
-添加 **Repository secrets**：
+添加 **Repository secrets**（3 个都必须有，缺一部署会在 2 秒内失败）：
 
 | Secret 名称 | 值 |
 |-------------|-----|
