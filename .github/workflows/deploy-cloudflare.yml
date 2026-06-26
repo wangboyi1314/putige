@@ -193,6 +193,7 @@ jobs:
           wranglerVersion: "4"
 
       - name: Confirm Pages production deployment
+        id: confirm_pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -204,34 +205,69 @@ jobs:
           curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige/deployments?per_page=5" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | tee /tmp/pages-deployments.json
           if grep -q '"canonical_deployment":null' /tmp/pages-project-after.json; then
-            echo "::warning::尚无 canonical_deployment（生产部署），putige.pages.dev 可能仍为 404"
+            echo "needs_recreate=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::尚无 canonical_deployment（生产部署），将尝试重建 Pages 项目"
+          else
+            echo "needs_recreate=false" >> "$GITHUB_OUTPUT"
           fi
           if ! grep -q '"environment":"production"' /tmp/pages-deployments.json; then
             echo "::warning::最近部署列表中未见 production 环境，请检查生产分支是否为 main"
           fi
 
-      - name: Verify Pages deployment
-        continue-on-error: true
-        id: verify_pages
+      - name: Recreate Pages project if missing production deployment
+        if: steps.confirm_pages.outputs.needs_recreate == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          set -euo pipefail
+          echo "删除异常的 Pages 项目 putige 并重建（仅 Direct Upload）..."
+          curl -sS -X DELETE "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | tee /tmp/delete-pages.json || true
+          sleep 8
+          curl -sS -X POST "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "name": "putige",
+              "production_branch": "main",
+              "deployment_configs": {
+                "production": {
+                  "compatibility_date": "2026-06-25",
+                  "compatibility_flags": ["nodejs_compat_v2", "global_fetch_strictly_public"]
+                }
+              }
+            }' | tee /tmp/recreate-pages.json
+          grep -q '"success":true' /tmp/recreate-pages.json
+          echo "$DEEPSEEK_API_KEY" | npx wrangler pages secret put DEEPSEEK_API_KEY --project-name putige
+          npx wrangler pages deploy .open-next/assets \
+            --project-name=putige \
+            --branch=main \
+            --commit-hash="${{ github.sha }}" \
+            --commit-message="Recreate deploy ${{ github.sha }}"
+
+      - name: Verify Pages deployment
+        continue-on-error: true
+        id: verify_pages
         run: |
           set -euo pipefail
           for i in 1 2 3 4 5 6; do
             echo "=== HTTP 检查 (${i}/6) ==="
-            curl -sI https://putige.pages.dev | head -10 | tee /tmp/pages-http.txt
-            if ! grep -q "404" /tmp/pages-http.txt; then
-              echo "putige.pages.dev 已可访问"
+            code=$(curl -sS -o /tmp/pages-body.html -w "%{http_code}" https://putige.pages.dev || echo "000")
+            echo "HTTP $code"
+            head -5 /tmp/pages-body.html || true
+            if [ "$code" = "200" ]; then
+              echo "putige.pages.dev 已可访问 (HTTP 200)"
               exit 0
             fi
             if [ "$i" -lt 6 ]; then
-              echo "仍 404，等待 30 秒后重试..."
+              echo "仍非 200，等待 30 秒后重试..."
               sleep 30
             fi
           done
-          echo "::warning::putige.pages.dev 仍返回 404，继续部署 Worker 备用地址"
-          echo "::warning::请在 Cloudflare 控制台确认：Pages 项目 putige 存在，且已暂停 Git 自动构建"
+          echo "::warning::putige.pages.dev 未返回 HTTP 200，继续部署 Worker 备用地址"
+          echo "::warning::请在 Cloudflare 控制台删除 Workers 类型的 putige 项目，保留 Pages 类型"
           echo "::warning::详见 CLOUDFLARE_PAGES_FIX.md"
           exit 1
 
