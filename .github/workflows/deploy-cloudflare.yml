@@ -106,11 +106,9 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
+          # 生产部署不要加 --branch（加了会变成预览环境，putige.pages.dev 会 404）
           npx wrangler pages deploy .open-next/assets \
             --project-name putige \
-            --branch main \
-            --commit-hash "${{ github.sha }}" \
-            --commit-message "Deploy from GitHub Actions" \
             2>&1 | tee /tmp/pages-deploy.log
           grep -E 'https://[^ ]+\.pages\.dev' /tmp/pages-deploy.log || true
           curl -sfI https://putige.pages.dev | head -5 || echo "::warning::putige.pages.dev 尚未响应，可能需等待 1-2 分钟"
@@ -152,4 +150,4 @@ jobs:
         run: |
           echo "部署完成！"
           echo "  主站: https://putige.pages.dev"
-          echo "  备用: https://putige-worker.wangboyi1314.workers.dev"
+          echo "  备用: https://putige.wangboyi1314.workers.dev"
