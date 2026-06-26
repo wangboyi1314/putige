@@ -114,18 +114,40 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          # 不能用 grep putige：会误匹配 putige-worker，导致 Pages 项目从未创建
-          if curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | grep -q '"success":true'; then
+          GET=$(curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          echo "$GET" | tee /tmp/get-pages.json
+          if echo "$GET" | grep -q '"success":true'; then
             echo "Pages 项目 putige 已存在"
+            exit 0
+          fi
+          echo "Pages 项目 putige 不存在，正在创建..."
+          CREATE=$(curl -sS -X POST "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "name": "putige",
+              "production_branch": "main",
+              "deployment_configs": {
+                "production": {
+                  "compatibility_date": "2026-06-25",
+                  "compatibility_flags": ["nodejs_compat_v2", "global_fetch_strictly_public"]
+                }
+              }
+            }')
+          echo "$CREATE" | tee /tmp/create-pages.json
+          if echo "$CREATE" | grep -q '"success":true'; then
+            echo "已通过 API 创建 Pages 项目 putige"
+          elif echo "$CREATE" | grep -qi 'already exists\|800000\|duplicate\|already been taken'; then
+            echo "Pages 项目 putige 名称已被占用（可能为旧 Workers 项目），继续尝试部署..."
           else
-            echo "Pages 项目 putige 不存在，正在创建..."
+            echo "::warning::API 创建 Pages 失败，尝试 wrangler..."
             npx wrangler pages project create putige \
               --production-branch main \
               --compatibility-date 2026-06-25 \
               --compatibility-flag nodejs_compat_v2 \
-              --compatibility-flag global_fetch_strictly_public
-            echo "已创建 Pages 项目 putige"
+              --compatibility-flag global_fetch_strictly_public \
+              || echo "wrangler create 也失败，继续 deploy（可能项目已存在）"
           fi
 
       - name: Configure Pages secrets (before deploy)
