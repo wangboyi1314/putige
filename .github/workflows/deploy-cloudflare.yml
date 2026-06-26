@@ -224,17 +224,21 @@ jobs:
 
       - name: Recreate Pages project if missing production deployment
         if: steps.confirm_pages.outputs.needs_recreate == 'true'
+        continue-on-error: true
+        id: recreate_pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
           set -euo pipefail
-          echo "删除异常的 Pages 项目 putige 并重建（仅 Direct Upload）..."
+          echo "尝试释放 putige 名称并重建 Pages 项目..."
+          npx wrangler delete putige --force 2>&1 || echo "无 Worker 脚本 putige 可删"
+          npx wrangler pages project delete putige --yes 2>&1 || echo "wrangler pages delete 跳过"
           curl -sS -X DELETE "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | tee /tmp/delete-pages.json || true
           sleep 8
-          curl -sS -X POST "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects" \
+          CREATE=$(curl -sS -X POST "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
             -H "Content-Type: application/json" \
             -d '{
@@ -246,8 +250,13 @@ jobs:
                   "compatibility_flags": ["nodejs_compat_v2", "global_fetch_strictly_public"]
                 }
               }
-            }' | tee /tmp/recreate-pages.json
-          grep -q '"success":true' /tmp/recreate-pages.json
+            }')
+          echo "$CREATE" | tee /tmp/recreate-pages.json
+          if ! echo "$CREATE" | grep -q '"success":true'; then
+            echo "::error::无法创建 Pages 项目 putige，名称可能被 Cloudflare 控制台里的 Workers 应用程序占用"
+            echo "::error::请手动删除 Workers 类型的 putige，再重新运行 Actions"
+            exit 1
+          fi
           echo "$DEEPSEEK_API_KEY" | npx wrangler pages secret put DEEPSEEK_API_KEY --project-name putige
           npx wrangler pages deploy .open-next/assets \
             --project-name=putige \
@@ -256,6 +265,7 @@ jobs:
             --commit-message="Recreate deploy ${{ github.sha }}"
 
       - name: Verify Pages deployment
+        continue-on-error: true
         id: verify_pages
         run: |
           set -euo pipefail
@@ -320,6 +330,9 @@ jobs:
           echo "  备用: https://putige-worker.wangboyi1314.workers.dev"
           if [ "${{ steps.verify_pages.outcome }}" = "success" ]; then
             echo "Pages 主站验证通过"
+          elif [ "${{ steps.recreate_pages.outcome }}" = "failure" ]; then
+            echo "::error::Pages 重建失败：请到 Cloudflare 控制台删除 Workers 类型的 putige 应用程序"
+            echo "::error::详见 CLOUDFLARE_PAGES_FIX.md"
           else
             echo "::warning::Pages 主站未通过验证，请按 CLOUDFLARE_PAGES_FIX.md 在控制台手动处理"
           fi
