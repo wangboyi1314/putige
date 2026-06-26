@@ -204,14 +204,22 @@ jobs:
           echo ""
           curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige/deployments?per_page=5" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | tee /tmp/pages-deployments.json
-          if grep -q '"canonical_deployment":null' /tmp/pages-project-after.json; then
+          live_code=$(curl -sS -o /dev/null -w "%{http_code}" https://putige.pages.dev || echo "000")
+          echo "putige.pages.dev 当前 HTTP $live_code"
+          if [ "$live_code" != "200" ]; then
+            echo "needs_recreate=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::主站未返回 200，将尝试重建 Pages 项目"
+          elif grep -q '"canonical_deployment":null' /tmp/pages-project-after.json; then
             echo "needs_recreate=true" >> "$GITHUB_OUTPUT"
             echo "::warning::尚无 canonical_deployment（生产部署），将尝试重建 Pages 项目"
+          elif ! grep -q '"environment":"production"' /tmp/pages-deployments.json; then
+            echo "needs_recreate=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::最近部署不是 production 环境，将尝试重建 Pages 项目"
+          elif grep -q '"status":"failure"' /tmp/pages-deployments.json; then
+            echo "needs_recreate=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::最近 Pages 部署失败，将尝试重建 Pages 项目"
           else
             echo "needs_recreate=false" >> "$GITHUB_OUTPUT"
-          fi
-          if ! grep -q '"environment":"production"' /tmp/pages-deployments.json; then
-            echo "::warning::最近部署列表中未见 production 环境，请检查生产分支是否为 main"
           fi
 
       - name: Recreate Pages project if missing production deployment
@@ -248,7 +256,6 @@ jobs:
             --commit-message="Recreate deploy ${{ github.sha }}"
 
       - name: Verify Pages deployment
-        continue-on-error: true
         id: verify_pages
         run: |
           set -euo pipefail
@@ -266,13 +273,13 @@ jobs:
               sleep 30
             fi
           done
-          echo "::warning::putige.pages.dev 未返回 HTTP 200，继续部署 Worker 备用地址"
-          echo "::warning::请在 Cloudflare 控制台删除 Workers 类型的 putige 项目，保留 Pages 类型"
-          echo "::warning::详见 CLOUDFLARE_PAGES_FIX.md"
+          echo "::error::putige.pages.dev 未返回 HTTP 200（当前多为 Cloudflare 空项目 404）"
+          echo "::error::请在 Cloudflare 控制台删除 Workers 类型的 putige 应用程序"
+          echo "::error::详见 CLOUDFLARE_PAGES_FIX.md"
           exit 1
 
       - name: Configure Pages plain environment variables
-        continue-on-error: true
+        if: steps.verify_pages.outcome == 'success'
         run: |
           patch='{"deployment_configs":{"production":{"env_vars":{'
           patch+='"DEEPSEEK_BASE_URL":{"type":"plain_text","value":"https://api.deepseek.com"},'
@@ -291,12 +298,14 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy to Cloudflare Workers (backup URL)
+        if: always() && !cancelled()
         run: npx opennextjs-cloudflare deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Upload Worker runtime secret
+        if: always() && !cancelled()
         run: echo "$DEEPSEEK_API_KEY" | npx wrangler secret put DEEPSEEK_API_KEY
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -304,11 +313,13 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
 
       - name: Deployment info
-        if: success()
+        if: always() && !cancelled()
         run: |
-          echo "部署完成！"
+          echo "部署流程结束"
           echo "  主站: https://putige.pages.dev"
           echo "  备用: https://putige-worker.wangboyi1314.workers.dev"
-          if [ "${{ steps.verify_pages.outcome }}" != "success" ]; then
-            echo "::warning::Pages 主站验证未通过，请先用备用地址或按 CLOUDFLARE_PAGES_FIX.md 处理"
+          if [ "${{ steps.verify_pages.outcome }}" = "success" ]; then
+            echo "Pages 主站验证通过"
+          else
+            echo "::warning::Pages 主站未通过验证，请按 CLOUDFLARE_PAGES_FIX.md 在控制台手动处理"
           fi
