@@ -2,12 +2,13 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"main": ".open-next/worker.js",
 	"name": "putige",
+	"workers_dev": false,
 	"compatibility_date": "2026-06-25",
 	"vars": {
 		"DEEPSEEK_BASE_URL": "https://api.deepseek.com",
 		"DEEPSEEK_MODEL": "deepseek-chat",
 		"PAYMENT_MODE": "demo",
-		"NEXT_PUBLIC_BASE_URL": "https://putige.wangboyi1314.workers.dev"
+		"NEXT_PUBLIC_BASE_URL": "https://putige.pages.dev"
 	},
 	"compatibility_flags": [
 		"nodejs_compat",

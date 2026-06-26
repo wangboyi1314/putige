@@ -1,6 +1,18 @@
-# GitHub Actions 一键部署 Cloudflare（推荐）
+# GitHub Actions 一键部署 Cloudflare Pages
 
-代码已配置 `.github/workflows/deploy-cloudflare.yml`，推送到 `main` 会自动构建并部署。
+目标地址：**https://putige.pages.dev**（不含 wangboyi1314）
+
+代码已配置 `.github/workflows/deploy-cloudflare.yml`，推送到 `main` 会自动配置 Pages 并触发部署。
+
+## 前提：Cloudflare 上要有 Pages 项目
+
+若还没有 **Pages** 项目 `putige`：
+
+1. [Cloudflare 控制台](https://dash.cloudflare.com) → **Workers & Pages** → **创建应用程序** → **Pages** → **连接到 Git**
+2. 选仓库 `wangboyi1314/putige`，项目名 **`putige`**
+3. 先随便部署一次（构建设置后面 Actions 会自动改）
+
+> 必须是 **Pages**，不是 Workers。Workers 只会得到 `*.wangboyi1314.workers.dev`。
 
 ## 一次性配置（约 3 分钟）
 
@@ -23,7 +35,7 @@
 ### 只有 Global API Key（没有 API Token）
 
 1. [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens)
-2. **Create Token** → 模板选 **Edit Cloudflare Workers**
+2. **Create Token** → 模板选 **Edit Cloudflare Workers**，并额外勾选 **Account / Cloudflare Pages / Edit**
 3. 创建后复制 Token → 填入 `CLOUDFLARE_API_TOKEN`
 
 ### 可选：修改公网地址
@@ -32,7 +44,7 @@
 
 | 变量名 | 值 |
 |--------|-----|
-| `NEXT_PUBLIC_BASE_URL` | `https://putige.pages.dev` 或你的 workers.dev 地址 |
+| `NEXT_PUBLIC_BASE_URL` | `https://putige.pages.dev` |
 
 ## 触发部署
 
@@ -41,8 +53,7 @@
 1. 打开 **Actions** 标签 → **Deploy to Cloudflare** → **Run workflow**  
    或再 push 一次代码到 `main`
 
-2. 等约 5～10 分钟，访问：  
-   **https://putige.wangboyi1314.workers.dev**
+2. 等约 5～10 分钟，访问：**https://putige.pages.dev**
 
 ## 与 Cloudflare 网页构建的关系
 

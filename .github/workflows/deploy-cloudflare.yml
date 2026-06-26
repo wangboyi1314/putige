@@ -1,4 +1,4 @@
-name: Deploy to Cloudflare
+name: Deploy to Cloudflare Pages
 
 on:
   push:
@@ -6,41 +6,76 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: cloudflare-deploy
+  group: cloudflare-pages-deploy
   cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .node-version
-          cache: npm
-
-      - run: npm ci
-
-      - name: Build OpenNext bundle
-        run: npx opennextjs-cloudflare build
+      - name: Check Pages project exists
         env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          DEEPSEEK_BASE_URL: https://api.deepseek.com
-          DEEPSEEK_MODEL: deepseek-chat
-          NEXT_PUBLIC_BASE_URL: ${{ vars.NEXT_PUBLIC_BASE_URL || 'https://putige.wangboyi1314.workers.dev' }}
-          PAYMENT_MODE: demo
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/pages/projects/putige" \
+            -H "Authorization: Bearer ${CF_TOKEN}")
+          if [ "$STATUS" = "404" ]; then
+            echo "::error::Cloudflare Pages 项目 putige 不存在。请在控制台创建 Pages 项目（不是 Workers），项目名填 putige"
+            exit 1
+          fi
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::无法访问 Pages 项目 (HTTP ${STATUS})，请检查 Token 权限"
+            exit 1
+          fi
 
-      - name: Upload worker secrets
-        run: echo "$DEEPSEEK_API_KEY" | npx wrangler secret put DEEPSEEK_API_KEY
+      - name: Configure Pages project (putige.pages.dev)
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEEPSEEK_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          set -euo pipefail
+          BODY=$(jq -n \
+            --arg key "${DEEPSEEK_KEY}" \
+            '{
+              build_config: {
+                build_command: "npx opennextjs-cloudflare build && npx opennextjs-cloudflare deploy",
+                destination_dir: "",
+                root_dir: "/",
+                build_caching: true
+              },
+              deployment_configs: {
+                production: {
+                  env_vars: {
+                    DEEPSEEK_API_KEY: {type: "secret_text", value: $key},
+                    DEEPSEEK_BASE_URL: {type: "plain_text", value: "https://api.deepseek.com"},
+                    DEEPSEEK_MODEL: {type: "plain_text", value: "deepseek-chat"},
+                    NEXT_PUBLIC_BASE_URL: {type: "plain_text", value: "https://putige.pages.dev"},
+                    PAYMENT_MODE: {type: "plain_text", value: "demo"}
+                  }
+                }
+              }
+            }')
+          curl -fsS -X PATCH \
+            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/pages/projects/putige" \
+            -H "Authorization: Bearer ${CF_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$BODY"
 
-      - name: Deploy to Cloudflare Workers
-        run: npx opennextjs-cloudflare deploy
+      - name: Trigger Pages deployment
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          curl -fsS -X POST \
+            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/pages/projects/putige/deployments" \
+            -H "Authorization: Bearer ${CF_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"branch":"main"}'
