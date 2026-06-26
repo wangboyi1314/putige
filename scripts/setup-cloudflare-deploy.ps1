@@ -1,11 +1,15 @@
 # 菩提阁 · Cloudflare Workers 一键配置（环境变量 + 重新部署）
-# 用法（PowerShell）:
-#   $env:CLOUDFLARE_API_TOKEN = "你的API_Token"
-#   cd d:\Bodhi
+#
+# 方式 A — API Token（推荐）:
+#   $env:CLOUDFLARE_API_TOKEN = "你的Token"
 #   .\scripts\setup-cloudflare-deploy.ps1
 #
-# Token 创建: https://dash.cloudflare.com/profile/api-tokens
-# 权限: Workers Builds Configuration (Edit) + Workers Scripts (Edit)
+# 方式 B — 全局 API Key（个人资料页里的 Global API Key）:
+#   $env:CLOUDFLARE_EMAIL = "你的登录邮箱"
+#   $env:CLOUDFLARE_API_KEY = "你的Global_API_Key"
+#   .\scripts\setup-cloudflare-deploy.ps1
+#
+# 没有 Token 也可在网页手动配置，见 CLOUDFLARE教程.md「手动补环境变量」
 
 param(
     [string]$WorkerName = "putige",
@@ -15,14 +19,18 @@ param(
 $ErrorActionPreference = "Stop"
 $BaseUrl = "https://api.cloudflare.com/client/v4"
 
-if (-not $env:CLOUDFLARE_API_TOKEN) {
-    Write-Host "请先设置环境变量: `$env:CLOUDFLARE_API_TOKEN = `"你的Token`"" -ForegroundColor Red
+$Headers = @{ "Content-Type" = "application/json" }
+if ($env:CLOUDFLARE_API_TOKEN) {
+    $Headers["Authorization"] = "Bearer $env:CLOUDFLARE_API_TOKEN"
+} elseif ($env:CLOUDFLARE_EMAIL -and $env:CLOUDFLARE_API_KEY) {
+    $Headers["X-Auth-Email"] = $env:CLOUDFLARE_EMAIL
+    $Headers["X-Auth-Key"] = $env:CLOUDFLARE_API_KEY
+} else {
+    Write-Host "请设置认证信息（二选一）:" -ForegroundColor Red
+    Write-Host '  $env:CLOUDFLARE_API_TOKEN = "Token"' -ForegroundColor Yellow
+    Write-Host '  或 $env:CLOUDFLARE_EMAIL + $env:CLOUDFLARE_API_KEY（全局 API Key）' -ForegroundColor Yellow
+    Write-Host "也可在 Cloudflare 网页手动配置，见 CLOUDFLARE教程.md" -ForegroundColor Yellow
     exit 1
-}
-
-$Headers = @{
-    Authorization = "Bearer $env:CLOUDFLARE_API_TOKEN"
-    "Content-Type" = "application/json"
 }
 
 function Invoke-CfApi {
@@ -100,8 +108,8 @@ Write-Host "   Trigger: $($prodTrigger.trigger_name) ($triggerUuid)"
 
 Write-Host ">> 更新构建命令 (OpenNext)..." -ForegroundColor Cyan
 Invoke-CfApi PATCH "/accounts/$accountId/builds/triggers/$triggerUuid" @{
-    build_command  = "npm run build"
-    deploy_command = "npx wrangler deploy"
+    build_command  = "npx opennextjs-cloudflare build"
+    deploy_command = "npx opennextjs-cloudflare deploy"
 } | Out-Null
 
 Write-Host ">> 设置构建环境变量..." -ForegroundColor Cyan

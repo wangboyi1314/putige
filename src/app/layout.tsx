@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Noto_Serif_SC } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -7,12 +6,6 @@ import { MobileNav } from "@/components/MobileNav";
 import { MeditationPlayerProvider } from "@/components/MeditationPlayerProvider";
 import { SiteBackground } from "@/components/SiteChrome";
 import { SITE_CONFIG } from "@/lib/config";
-
-const notoSerif = Noto_Serif_SC({
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
-  variable: "--font-serif",
-});
 
 export const metadata: Metadata = {
   title: `${SITE_CONFIG.name} · ${SITE_CONFIG.tagline}`,
@@ -34,7 +27,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="zh-CN" className={`${notoSerif.variable} h-full`}>
+    <html lang="zh-CN" className="h-full">
       <body className="min-h-full flex flex-col antialiased text-amber-50">
         <MeditationPlayerProvider>
           <SiteBackground />
