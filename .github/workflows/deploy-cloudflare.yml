@@ -56,6 +56,22 @@ jobs:
       - name: Compile Pages Functions
         run: npx wrangler pages functions build out --compatibility-flag nodejs_compat
 
+      - name: Ensure orders KV namespace
+        id: orders_kv
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          KV_ID=$(npx wrangler kv namespace list --json | jq -r '.[] | select(.title=="putige-orders") | .id' | head -1)
+          if [ -z "$KV_ID" ] || [ "$KV_ID" = "null" ]; then
+            KV_ID=$(npx wrangler kv namespace create putige-orders --json | jq -r '.id')
+            echo "Created KV namespace putige-orders"
+          else
+            echo "Using existing KV namespace putige-orders"
+          fi
+          echo "kv_id=$KV_ID" >> "$GITHUB_OUTPUT"
+
       - name: Configure Pages secrets
         continue-on-error: true
         env:
@@ -79,25 +95,34 @@ jobs:
           npx wrangler pages deploy out \
             --project-name=putige \
             --branch=main \
-            --commit-hash="${{ github.sha }}"
+            --commit-hash="${{ github.sha }}" \
+            --kv=ORDERS=${{ steps.orders_kv.outputs.kv_id }}
 
       - name: Verify payment API
         continue-on-error: true
         run: |
           set -euo pipefail
-          URL="https://putige-eh2.pages.dev/api/payment/create"
+          BASE="https://putige-eh2.pages.dev"
           for i in 1 2 3 4 5 6 7 8; do
-            BODY=$(curl -sS -X POST "$URL" \
+            HEALTH=$(curl -sS "$BASE/api/health" || echo "{}")
+            echo "health attempt $i => $HEALTH"
+            BODY=$(curl -sS -X POST "$BASE/api/payment/create" \
               -H "Content-Type: application/json" \
               -d '{"productId":"qian_premium","payChannel":"wechat"}' || echo "{}")
-            echo "attempt $i => $BODY"
-            if echo "$BODY" | grep -q '"xunhuMode":true'; then
-              echo "虎皮椒支付已上线"
-              exit 0
+            echo "create attempt $i => $BODY"
+            ORDER_ID=$(echo "$BODY" | jq -r '.orderId // empty')
+            if echo "$BODY" | grep -q '"xunhuMode":true' && [ -n "$ORDER_ID" ]; then
+              STATUS=$(curl -sS "$BASE/api/payment/status?orderId=$ORDER_ID" || echo "{}")
+              echo "status => $STATUS"
+              if echo "$STATUS" | grep -q '"status":"pending"'; then
+                echo "虎皮椒支付与订单 KV 均已上线"
+                exit 0
+              fi
+              echo "::warning::支付下单成功但订单状态未持久化，请检查 KV 绑定 ORDERS"
             fi
             sleep 15
           done
-          echo "::error::支付 API 未返回 xunhuMode，请检查 Cloudflare 环境变量 XUNHU_APP_SECRET"
+          echo "::error::支付 API 未完全就绪，请检查 Cloudflare 环境变量与 KV"
           exit 1
 
       - name: Deployment info

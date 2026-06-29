@@ -11,6 +11,7 @@ export const onRequestGet: PagesFunction<PagesEnv> = async (context) => {
     xunhu: isXunhuMode(env),
     demo: isDemoMode(env),
     hasXunhuSecret: !!envGet("XUNHU_APP_SECRET", env)?.trim(),
+    hasOrdersKv: !!env.ORDERS,
     baseUrl: envGet("NEXT_PUBLIC_BASE_URL", env),
   });
 };
