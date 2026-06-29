@@ -63,13 +63,21 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          KV_ID=$(npx wrangler kv namespace list | jq -r '.[] | select(.title=="putige-orders") | .id' | head -1)
+          API="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces"
+          KV_ID=$(curl -sS "$API" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            | jq -r '.result[] | select(.title=="putige-orders") | .id' | head -1)
           if [ -z "$KV_ID" ] || [ "$KV_ID" = "null" ]; then
-            KV_ID=$(npx wrangler kv namespace create putige-orders | jq -r '.id')
+            KV_ID=$(curl -sS -X POST "$API" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data '{"title":"putige-orders"}' \
+              | jq -r '.result.id')
             echo "Created KV namespace putige-orders"
           else
             echo "Using existing KV namespace putige-orders"
           fi
+          test -n "$KV_ID"
           echo "kv_id=$KV_ID" >> "$GITHUB_OUTPUT"
 
       - name: Bind ORDERS KV to Pages project
