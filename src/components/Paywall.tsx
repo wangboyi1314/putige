@@ -37,6 +37,19 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
 
   const product = PRODUCTS[productId];
 
+  const isMobile =
+    typeof window !== "undefined" &&
+    (/Android|iPhone|iPad|iPod|Mobile|MicroMessenger/i.test(navigator.userAgent) ||
+      window.innerWidth < 768);
+
+  function openCashier(url: string) {
+    if (isMobile) {
+      window.location.assign(url);
+    } else {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  }
+
   const markUnlocked = useCallback(
     (oid: string) => {
       savePaidOrder(productId, oid);
@@ -93,7 +106,9 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
     return () => window.clearInterval(timer);
   }, [polling, orderId, markUnlocked]);
 
-  async function startPay(channel?: "wechat" | "alipay") {
+  async function startPay(channel?: "wechat" | "alipay", jumpToCashier = false) {
+    const activeChannel = channel ?? payChannel;
+    if (channel) setPayChannel(channel);
     setLoading(true);
     setError("");
     try {
@@ -102,7 +117,7 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           productId,
-          payChannel: channel ?? payChannel,
+          payChannel: activeChannel,
         }),
       });
       const data = await res.json();
@@ -113,8 +128,10 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
       setDemoMode(!!data.demoMode);
       setQrMode(!!data.qrMode);
       setAutoPayMode(!!(data.xunhuMode || data.merchantMode));
-      setPayUrl(data.payUrl ?? null);
-      setQrUrl(data.qrUrl ?? data.urlQrcode ?? data.wechatCodeUrl ?? data.alipayQrCode ?? null);
+      const nextPayUrl = data.payUrl ?? null;
+      const nextQrUrl = data.qrUrl ?? data.urlQrcode ?? data.wechatCodeUrl ?? data.alipayQrCode ?? null;
+      setPayUrl(nextPayUrl);
+      setQrUrl(nextQrUrl);
 
       if (data.demoMode) {
         const confirmRes = await fetch("/api/payment/confirm", {
@@ -127,6 +144,12 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
       } else {
         setShowPay(true);
         if (data.xunhuMode || data.merchantMode) setPolling(true);
+        if (jumpToCashier && nextPayUrl) {
+          openCashier(nextPayUrl);
+        } else if (isMobile && nextPayUrl && (data.xunhuMode || data.merchantMode)) {
+          // 手机端首次下单后直接进入收银台（虎皮椒 url 字段专供手机）
+          openCashier(nextPayUrl);
+        }
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "支付失败，请重试";
@@ -200,7 +223,9 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
       {showPay && !demoMode && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className="glass-panel-heavy rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6">
-            <h3 className="text-center font-serif text-xl text-amber-100 mb-1">扫码支付</h3>
+            <h3 className="text-center font-serif text-xl text-amber-100 mb-1">
+              {isMobile ? "跳转支付" : "扫码支付"}
+            </h3>
             <p className="text-center text-amber-300 text-2xl font-serif mb-1">¥{amount}</p>
             <p className="text-center text-amber-400/50 text-xs mb-4">
               {product.name} · 订单 {orderId.slice(-8)}
@@ -213,11 +238,14 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
                     key={ch}
                     type="button"
                     onClick={() => {
-                      setPayChannel(ch);
-                      startPay(ch);
+                      if (ch === payChannel && payUrl) {
+                        openCashier(payUrl);
+                        return;
+                      }
+                      void startPay(ch, true);
                     }}
                     disabled={loading}
-                    className={`px-4 py-1.5 rounded-full text-xs border ${
+                    className={`px-4 py-2 rounded-full text-xs border ${
                       payChannel === ch
                         ? "border-amber-400/50 bg-amber-400/15 text-amber-100"
                         : "border-amber-400/20 text-amber-400/50"
@@ -231,11 +259,23 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
 
             <p className="text-center text-amber-100/55 text-xs mb-4 leading-relaxed">
               {autoPayMode
-                ? "请扫码或点击下方按钮支付，到账后自动解锁。"
+                ? isMobile
+                  ? "点击下方绿色按钮将跳转到微信/支付宝完成付款，付完返回本页自动解锁。"
+                  : "电脑端请扫下方二维码；手机请点绿色按钮跳转收银台。"
                 : "请扫码支付对应金额，完成后点击「我已支付」解锁。"}
             </p>
 
-            {autoPayMode && qrUrl && (
+            {autoPayMode && payUrl && (
+              <button
+                type="button"
+                onClick={() => openCashier(payUrl)}
+                className="block w-full py-4 mb-3 text-center bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-xl text-base font-semibold shadow-lg shadow-emerald-900/30"
+              >
+                {payChannel === "wechat" ? "立即打开微信支付" : "立即打开支付宝支付"}
+              </button>
+            )}
+
+            {autoPayMode && qrUrl && !isMobile && (
               <div className="rounded-xl overflow-hidden border border-amber-400/25 bg-white p-3 mb-4">
                 <p className="text-center text-xs text-gray-600 mb-2">电脑端请扫码</p>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -243,15 +283,8 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
               </div>
             )}
 
-            {autoPayMode && payUrl && (
-              <a
-                href={payUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full py-3 mb-3 text-center bg-gradient-to-r from-emerald-700 to-emerald-600 text-white rounded-xl text-sm font-medium"
-              >
-                打开手机支付 / 跳转收银台
-              </a>
+            {autoPayMode && polling && (
+              <p className="text-center text-amber-400/60 text-xs mb-3 animate-pulse">等待支付到账…</p>
             )}
 
             {qrMode && (
@@ -269,10 +302,6 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
                   </div>
                 </div>
               </div>
-            )}
-
-            {autoPayMode && polling && (
-              <p className="text-center text-amber-400/60 text-xs mb-3 animate-pulse">等待支付到账…</p>
             )}
 
             {qrMode && (
