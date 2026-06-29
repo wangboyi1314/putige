@@ -45,7 +45,17 @@ export function Paywall({ productId, onUnlock, children, preview }: PaywallProps
     if (localStorage.getItem(paidStorageKey(productId)) === "1") {
       setUnlocked(true);
     }
-  }, [productId]);
+
+    function handlePaymentUnlock(e: Event) {
+      const detail = (e as CustomEvent<{ productId: ProductId }>).detail;
+      if (detail?.productId === productId) {
+        setUnlocked(true);
+        onUnlock();
+      }
+    }
+    window.addEventListener("bodhi-payment-unlock", handlePaymentUnlock);
+    return () => window.removeEventListener("bodhi-payment-unlock", handlePaymentUnlock);
+  }, [productId, onUnlock]);
 
   useEffect(() => {
     if (!polling || !orderId) return;

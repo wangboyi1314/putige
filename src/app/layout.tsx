@@ -4,6 +4,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { MobileNav } from "@/components/MobileNav";
 import { MeditationPlayerProvider } from "@/components/MeditationPlayerProvider";
+import { PaymentReturnHandler } from "@/components/PaymentReturnHandler";
 import { SiteBackground } from "@/components/SiteChrome";
 import { SITE_CONFIG } from "@/lib/config";
 
@@ -30,6 +31,7 @@ export default function RootLayout({
     <html lang="zh-CN" className="h-full">
       <body className="min-h-full flex flex-col antialiased text-amber-50">
         <MeditationPlayerProvider>
+          <PaymentReturnHandler />
           <SiteBackground />
           <div className="relative z-10 flex min-h-full flex-col">
             <Header />

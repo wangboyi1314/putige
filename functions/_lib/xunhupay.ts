@@ -1,4 +1,6 @@
-import crypto from "crypto";
+import crypto from "node:crypto";
+import type { RuntimeEnv } from "./runtime-env";
+import { envGet } from "./runtime-env";
 
 const DEFAULT_GATEWAY = "https://api.xunhupay.com/payment/do.html";
 
@@ -41,35 +43,39 @@ export function sanitizeTradeOrderId(orderId: string): string {
   return cleaned.slice(0, 32);
 }
 
-export function getXunhuWechatChannel(): XunhuChannel | null {
-  const appId = process.env.XUNHU_APP_ID;
-  const appSecret = process.env.XUNHU_APP_SECRET;
+export function getXunhuWechatChannel(env?: RuntimeEnv): XunhuChannel | null {
+  const appId = envGet("XUNHU_APP_ID", env);
+  const appSecret = envGet("XUNHU_APP_SECRET", env);
   if (!appId || !appSecret) return null;
   return { appId, appSecret, label: "微信" };
 }
 
-export function getXunhuAlipayChannel(): XunhuChannel | null {
-  const appId = process.env.XUNHU_ALIPAY_APP_ID || process.env.XUNHU_APP_ID;
-  const appSecret = process.env.XUNHU_ALIPAY_APP_SECRET || process.env.XUNHU_APP_SECRET;
+export function getXunhuAlipayChannel(env?: RuntimeEnv): XunhuChannel | null {
+  const appId = envGet("XUNHU_ALIPAY_APP_ID", env) || envGet("XUNHU_APP_ID", env);
+  const appSecret =
+    envGet("XUNHU_ALIPAY_APP_SECRET", env) || envGet("XUNHU_APP_SECRET", env);
   if (!appId || !appSecret) return null;
-  if (!process.env.XUNHU_ALIPAY_APP_ID) return null;
+  if (!envGet("XUNHU_ALIPAY_APP_ID", env)) return null;
   return { appId, appSecret, label: "支付宝" };
 }
 
-export function isXunhuConfigured(): boolean {
-  return !!getXunhuWechatChannel();
+export function isXunhuConfigured(env?: RuntimeEnv): boolean {
+  return !!getXunhuWechatChannel(env);
 }
 
 /** 发起虎皮椒支付，返回收银台链接与 PC 二维码图地址 */
-export async function createXunhuPayment(params: {
-  orderId: string;
-  amountYuan: number;
-  title: string;
-  notifyUrl: string;
-  returnUrl?: string;
-  channel: XunhuChannel;
-}): Promise<XunhuCreateResult> {
-  const gateway = process.env.XUNHU_API_URL || DEFAULT_GATEWAY;
+export async function createXunhuPayment(
+  params: {
+    orderId: string;
+    amountYuan: number;
+    title: string;
+    notifyUrl: string;
+    returnUrl?: string;
+    channel: XunhuChannel;
+  },
+  env?: RuntimeEnv
+): Promise<XunhuCreateResult> {
+  const gateway = envGet("XUNHU_API_URL", env) || DEFAULT_GATEWAY;
   const tradeOrderId = sanitizeTradeOrderId(params.orderId);
   const payload: Record<string, string | number> = {
     version: "1.1",
@@ -143,12 +149,18 @@ export function verifyXunhuNotify(
 }
 
 /** 根据回调 appid 匹配对应密钥 */
-export function resolveXunhuSecretByAppId(appid: string): string | null {
-  if (appid === process.env.XUNHU_ALIPAY_APP_ID && process.env.XUNHU_ALIPAY_APP_SECRET) {
-    return process.env.XUNHU_ALIPAY_APP_SECRET;
+export function resolveXunhuSecretByAppId(
+  appid: string,
+  env?: RuntimeEnv
+): string | null {
+  if (
+    appid === envGet("XUNHU_ALIPAY_APP_ID", env) &&
+    envGet("XUNHU_ALIPAY_APP_SECRET", env)
+  ) {
+    return envGet("XUNHU_ALIPAY_APP_SECRET", env) || null;
   }
-  if (appid === process.env.XUNHU_APP_ID && process.env.XUNHU_APP_SECRET) {
-    return process.env.XUNHU_APP_SECRET;
+  if (appid === envGet("XUNHU_APP_ID", env) && envGet("XUNHU_APP_SECRET", env)) {
+    return envGet("XUNHU_APP_SECRET", env) || null;
   }
-  return process.env.XUNHU_APP_SECRET || null;
+  return envGet("XUNHU_APP_SECRET", env) || null;
 }
