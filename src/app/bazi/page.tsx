@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { calculateBaZi, type BaZiChart, type CalendarType } from "@/lib/bazi";
 import { Interpretation } from "@/components/Interpretation";
 import { Paywall } from "@/components/Paywall";
@@ -8,6 +8,8 @@ import { MasterPicker } from "@/components/MasterPicker";
 import { PageHero } from "@/components/SiteChrome";
 import { ConsentNotice } from "@/components/ConsentNotice";
 import { BirthDateForm, SHI_CHEN } from "@/components/BirthDateForm";
+import { ResultSection } from "@/components/ResultSection";
+import { AnalysisLoading } from "@/components/AnalysisLoading";
 import { saveRecord } from "@/lib/records";
 
 function DateStepper({ label, value, set, min, max }: { label: string; value: number; set: (v: number) => void; min: number; max: number }) {
@@ -33,6 +35,7 @@ export default function BaziPage() {
   const [interpretation, setInterpretation] = useState("");
   const [premiumInterpretation, setPremiumInterpretation] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resultVersion, setResultVersion] = useState(0);
 
   async function run(isPremium: boolean) {
     const { year, month, day, hour, isLeapMonth } = birth;
@@ -46,8 +49,8 @@ export default function BaziPage() {
     });
     if (!isPremium) {
       setChart(result);
-      setInterpretation("");
       setPremiumInterpretation("");
+      setResultVersion((v) => v + 1);
       saveRecord({ type: "bazi", title: "八字排盘", summary: result.inputLabel });
     }
     setLoading(true);
@@ -64,6 +67,17 @@ export default function BaziPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !chart || !interpretation || loading) return;
+    if (
+      localStorage.getItem("bodhi_paid_bazi_premium") === "1" &&
+      !premiumInterpretation
+    ) {
+      void run(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chart, interpretation, loading, premiumInterpretation]);
 
   const wuXingColors: Record<string, string> = { 金: "text-yellow-300", 木: "text-green-400", 水: "text-blue-400", 火: "text-red-400", 土: "text-amber-600" };
 
@@ -127,13 +141,34 @@ export default function BaziPage() {
           <input value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="想了解什么？事业、财运、婚姻……"
             className="w-full px-4 py-3 rounded-xl bg-amber-950/30 border border-amber-400/20 text-amber-100 placeholder-amber-400/30 focus:outline-none" />
 
-          <button onClick={() => run(false)} className="w-full py-3 bg-gradient-to-r from-violet-700 to-purple-600 text-amber-50 rounded-xl font-medium">开始真排盘</button>
+          <button
+            onClick={() => run(false)}
+            disabled={loading}
+            className="w-full py-3 bg-gradient-to-r from-violet-700 to-purple-600 text-amber-50 rounded-xl font-medium disabled:opacity-60"
+          >
+            {loading ? "正在排盘并生成解读…" : "开始真排盘"}
+          </button>
+          {!chart && (
+            <p className="text-center text-amber-500/50 text-xs">
+              点击后四柱排盘与 AI 解读将显示在下方，可解锁完整详批
+            </p>
+          )}
           <ConsentNotice topic="生辰信息" />
         </div>
 
         {chart && (
-          <div className="space-y-6">
-            <div className="glass-panel p-6 rounded-xl">
+          <ResultSection
+            active
+            scrollKey={resultVersion}
+            banner={
+              loading && !interpretation
+                ? "排盘已完成，正在生成解读，请稍候…"
+                : loading
+                  ? "正在更新解读…"
+                  : "排盘与解读已生成 · 向下查看并解锁完整详批"
+            }
+          >
+            <div className="glass-panel p-6 rounded-xl ring-1 ring-amber-400/15">
               <p className="text-center text-amber-400/50 text-xs mb-1">输入：{chart.inputLabel}</p>
               <p className="text-center text-amber-200/60 text-sm mb-4">{chart.solarDate} · {chart.lunarDate} · 属{chart.shengXiao}</p>
               <div className="grid grid-cols-4 gap-2 text-center">
@@ -148,13 +183,26 @@ export default function BaziPage() {
               <p className="text-center text-sm mt-4">日主：<span className={wuXingColors[chart.dayMasterWuXing]}>{chart.dayMaster}</span>（{chart.dayMasterWuXing}）</p>
             </div>
             {interpretation ? (
-              <Paywall productId="bazi_premium" onUnlock={() => run(true)} preview={<Interpretation content={interpretation} />}>
+              <Paywall
+                productId="bazi_premium"
+                onUnlock={() => run(true)}
+                preview={
+                  <div className="relative">
+                    <Interpretation content={interpretation} />
+                    {loading && (
+                      <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-[#1a1208]/75 backdrop-blur-[1px]">
+                        <p className="text-amber-200 text-sm px-4 text-center">正在更新解读，请稍候…</p>
+                      </div>
+                    )}
+                  </div>
+                }
+              >
                 <Interpretation content={premiumInterpretation} loading={loading} />
               </Paywall>
             ) : (
-              <Interpretation content="" loading={loading} />
+              <AnalysisLoading productId="bazi_premium" label="师父正在研读您的八字命盘…" />
             )}
-          </div>
+          </ResultSection>
         )}
       </div>
     </div>

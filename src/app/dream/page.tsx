@@ -6,6 +6,8 @@ import { Interpretation } from "@/components/Interpretation";
 import { Paywall } from "@/components/Paywall";
 import { PageHero } from "@/components/SiteChrome";
 import { ConsentNotice } from "@/components/ConsentNotice";
+import { ResultSection } from "@/components/ResultSection";
+import { AnalysisLoading } from "@/components/AnalysisLoading";
 import { saveRecord } from "@/lib/records";
 
 export default function DreamPage() {
@@ -16,6 +18,7 @@ export default function DreamPage() {
   const [interpretation, setInterpretation] = useState("");
   const [premiumInterpretation, setPremiumInterpretation] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resultVersion, setResultVersion] = useState(0);
 
   function handleSearch() {
     const found = query ? searchDream(query) : category ? getDreamsByCategory(category) : DREAM_ENTRIES.slice(0, 12);
@@ -29,6 +32,7 @@ export default function DreamPage() {
       setSelected(dream);
       setInterpretation("");
       setPremiumInterpretation("");
+      setResultVersion((v) => v + 1);
       saveRecord({ type: "dream", title: `梦见${dream.keyword}`, summary: dream.brief.slice(0, 40) });
     }
     setLoading(true);
@@ -83,7 +87,15 @@ export default function DreamPage() {
         )}
 
         {selected && (
-          <div className="space-y-6">
+          <ResultSection
+            active
+            scrollKey={resultVersion}
+            banner={
+              loading && !interpretation
+                ? "梦境已选定，正在生成解读…"
+                : "解读在下方 · 可解锁完整详批"
+            }
+          >
             <button onClick={() => { setSelected(null); setInterpretation(""); }} className="text-amber-400/50 text-sm">← 返回</button>
             <div className="glass-panel p-6">
               <h2 className="text-amber-200 font-serif text-xl mb-2">梦见{selected.keyword}</h2>
@@ -96,9 +108,9 @@ export default function DreamPage() {
                 <Interpretation content={premiumInterpretation} loading={loading} />
               </Paywall>
             ) : (
-              <Interpretation content="" loading={loading} />
+              <AnalysisLoading productId="dream_premium" label="师父正在解读您的梦境…" />
             )}
-          </div>
+          </ResultSection>
         )}
       </div>
     </div>

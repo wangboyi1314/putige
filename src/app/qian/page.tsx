@@ -7,6 +7,8 @@ import { Paywall } from "@/components/Paywall";
 import { MasterPicker } from "@/components/MasterPicker";
 import { PageHero } from "@/components/SiteChrome";
 import { ConsentNotice } from "@/components/ConsentNotice";
+import { ResultSection } from "@/components/ResultSection";
+import { AnalysisLoading } from "@/components/AnalysisLoading";
 import { saveRecord } from "@/lib/records";
 
 export default function QianPage() {
@@ -17,6 +19,7 @@ export default function QianPage() {
   const [interpretation, setInterpretation] = useState("");
   const [premiumInterpretation, setPremiumInterpretation] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resultVersion, setResultVersion] = useState(0);
 
   async function fetchInterpretation(target: QianStick, isPremium: boolean) {
     setLoading(true);
@@ -43,12 +46,13 @@ export default function QianPage() {
   async function handleDraw() {
     setShaking(true);
     setStick(null);
-    setInterpretation("");
     setPremiumInterpretation("");
     await new Promise((r) => setTimeout(r, 2000));
     const drawn = drawQian();
     setStick(drawn);
+    setInterpretation("");
     setShaking(false);
+    setResultVersion((v) => v + 1);
     saveRecord({ type: "qian", title: `第${drawn.number}签 · ${drawn.level}`, summary: drawn.poem.slice(0, 40) });
     await fetchInterpretation(drawn, false);
   }
@@ -73,14 +77,25 @@ export default function QianPage() {
           <div className="text-center">
             <div className={`text-7xl mb-4 ${shaking ? "animate-bounce" : ""}`}>🏮</div>
             <button onClick={handleDraw} disabled={shaking || loading} className="px-10 py-3 bg-gradient-to-r from-red-800 to-red-700 text-amber-50 rounded-full font-medium disabled:opacity-50">
-              {shaking ? "摇签中..." : stick ? "再求一签" : "求一支签"}
+              {shaking ? "摇签中..." : loading ? "正在解签…" : stick ? "再求一签" : "求一支签"}
             </button>
+            {!stick && (
+              <p className="text-amber-500/50 text-xs mt-3">抽签结果与解读将显示在下方</p>
+            )}
           </div>
           <ConsentNotice topic="问事内容" />
         </div>
 
         {stick && (
-          <div className="space-y-6">
+          <ResultSection
+            active
+            scrollKey={resultVersion}
+            banner={
+              loading && !interpretation
+                ? "签文已出，正在生成解读…"
+                : "签文与解读在下方 · 可解锁完整详批"
+            }
+          >
             <div className="glass-panel p-8 rounded-xl text-center">
               <p className="text-amber-400/50 text-sm">关帝灵签 · 第 {stick.number} 签 / 100</p>
               <p className={`text-2xl font-serif my-3 ${levelColor[stick.level]}`}>{stick.level}签</p>
@@ -93,9 +108,9 @@ export default function QianPage() {
                 <Interpretation content={premiumInterpretation} loading={loading} />
               </Paywall>
             ) : (
-              <Interpretation content="" loading={loading} />
+              <AnalysisLoading productId="qian_premium" label="师父正在为您解签…" />
             )}
-          </div>
+          </ResultSection>
         )}
       </div>
     </div>

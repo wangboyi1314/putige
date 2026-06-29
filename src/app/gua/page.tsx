@@ -7,6 +7,8 @@ import { Paywall } from "@/components/Paywall";
 import { MasterPicker } from "@/components/MasterPicker";
 import { PageHero } from "@/components/SiteChrome";
 import { ConsentNotice } from "@/components/ConsentNotice";
+import { ResultSection } from "@/components/ResultSection";
+import { AnalysisLoading } from "@/components/AnalysisLoading";
 import { saveRecord } from "@/lib/records";
 
 const LINE_LABELS: Record<LineValue, string> = { 6: "老阴 ○×", 7: "少阳 —", 8: "少阴 --", 9: "老阳 ○" };
@@ -20,6 +22,7 @@ export default function GuaPage() {
   const [premiumInterpretation, setPremiumInterpretation] = useState("");
   const [loading, setLoading] = useState(false);
   const [casting, setCasting] = useState(false);
+  const [resultVersion, setResultVersion] = useState(0);
 
   const interpret = useCallback(async (guaResult: GuaResult, isPremium: boolean) => {
     setLoading(true);
@@ -47,7 +50,6 @@ export default function GuaPage() {
     setCasting(true);
     setLines([]);
     setResult(null);
-    setInterpretation("");
     setPremiumInterpretation("");
     const newLines: LineValue[] = [];
     for (let i = 0; i < 6; i++) {
@@ -57,6 +59,8 @@ export default function GuaPage() {
     }
     const guaResult = castHexagram(newLines);
     setResult(guaResult);
+    setInterpretation("");
+    setResultVersion((v) => v + 1);
     setCasting(false);
     saveRecord({ type: "gua", title: `${guaResult.benGua.name}卦`, summary: guaResult.benGua.guaCi });
     await interpret(guaResult, false);
@@ -75,9 +79,12 @@ export default function GuaPage() {
               className="mt-1 w-full px-4 py-3 rounded-xl bg-amber-950/30 border border-amber-400/20 text-amber-100 placeholder-amber-400/30 focus:outline-none" />
           </div>
           <div className="text-center">
-            <button onClick={cast} disabled={casting} className="px-10 py-3 bg-gradient-to-r from-amber-700 to-amber-600 text-amber-50 rounded-full font-medium disabled:opacity-50">
-              {casting ? "起卦中..." : lines.length === 0 ? "摇动签筒 · 六爻成卦" : "重新起卦"}
+            <button onClick={cast} disabled={casting || loading} className="px-10 py-3 bg-gradient-to-r from-amber-700 to-amber-600 text-amber-50 rounded-full font-medium disabled:opacity-50">
+              {casting ? "起卦中..." : loading ? "正在解卦…" : lines.length === 0 ? "摇动签筒 · 六爻成卦" : "重新起卦"}
             </button>
+            {lines.length === 0 && (
+              <p className="text-amber-500/50 text-xs mt-3">卦象与解读将显示在下方</p>
+            )}
           </div>
           <ConsentNotice topic="问事内容" />
         </div>
@@ -97,7 +104,15 @@ export default function GuaPage() {
         )}
 
         {result && (
-          <div className="space-y-6">
+          <ResultSection
+            active
+            scrollKey={resultVersion}
+            banner={
+              loading && !interpretation
+                ? "卦象已成，正在生成解读…"
+                : "卦象与解读在下方 · 可解锁完整详批"
+            }
+          >
             <div className="grid grid-cols-3 gap-3">
               {[{ label: "本卦", gua: result.benGua }, { label: "互卦", gua: result.huGua }, ...(result.bianGua ? [{ label: "变卦", gua: result.bianGua }] : [])].map(({ label, gua }) => (
                 <div key={label} className="glass-panel p-4 text-center">
@@ -113,9 +128,9 @@ export default function GuaPage() {
                 <Interpretation content={premiumInterpretation} loading={loading} />
               </Paywall>
             ) : (
-              <Interpretation content="" loading={loading} />
+              <AnalysisLoading productId="gua_premium" label="师父正在解读卦象…" />
             )}
-          </div>
+          </ResultSection>
         )}
       </div>
     </div>
