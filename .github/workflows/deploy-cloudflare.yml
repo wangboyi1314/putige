@@ -30,6 +30,7 @@ jobs:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DEEPSEEK_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          XUNHU_SECRET: ${{ secrets.XUNHU_APP_SECRET }}
         run: |
           set -euo pipefail
           missing=0
@@ -45,6 +46,10 @@ jobs:
             echo "::error::未配置 DEEPSEEK_API_KEY"
             missing=1
           fi
+          if [ -z "${XUNHU_SECRET}" ]; then
+            echo "::error::未配置 XUNHU_APP_SECRET（虎皮椒密钥，在 GitHub Secrets 中添加）"
+            missing=1
+          fi
           [ "$missing" -eq 0 ]
 
       - name: Install dependencies
@@ -55,7 +60,7 @@ jobs:
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           NEXT_PUBLIC_BASE_URL: https://putige-eh2.pages.dev
-          PAYMENT_MODE: demo
+          PAYMENT_MODE: xunhu
 
       - name: Package Pages bundle with Functions
         run: bash scripts/build-pages-static.sh
@@ -97,32 +102,76 @@ jobs:
             echo "::warning::创建 Pages 项目失败，继续尝试 deploy（可能已存在）"
           fi
 
+      - name: Ensure orders KV namespace
+        id: kv
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          LIST=$(curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          KV_ID=$(echo "$LIST" | grep -o '"id":"[^"]*","title":"putige-orders"' | head -1 | cut -d'"' -f4 || true)
+          if [ -z "$KV_ID" ]; then
+            KV_ID=$(echo "$LIST" | python3 -c "
+import json,sys
+data=json.load(sys.stdin)
+for ns in data.get('result',[]):
+  if ns.get('title')=='putige-orders':
+    print(ns['id']); break
+" 2>/dev/null || true)
+          fi
+          if [ -z "$KV_ID" ]; then
+            CREATE=$(curl -sS -X POST \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{"title":"putige-orders"}')
+            KV_ID=$(echo "$CREATE" | python3 -c "import json,sys; print(json.load(sys.stdin)['result']['id'])" 2>/dev/null || \
+              echo "$CREATE" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+          fi
+          if [ -z "$KV_ID" ]; then
+            echo "::warning::无法创建 KV 命名空间 putige-orders，订单将仅用内存（多实例可能轮询失败）"
+            echo "kv_id=" >> "$GITHUB_OUTPUT"
+          else
+            echo "KV namespace putige-orders: $KV_ID"
+            echo "kv_id=$KV_ID" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Configure Pages secrets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          XUNHU_APP_SECRET: ${{ secrets.XUNHU_APP_SECRET }}
+          KV_ID: ${{ steps.kv.outputs.kv_id }}
         run: |
           echo "$DEEPSEEK_API_KEY" | npx wrangler pages secret put DEEPSEEK_API_KEY --project-name putige
+          echo "$XUNHU_APP_SECRET" | npx wrangler pages secret put XUNHU_APP_SECRET --project-name putige
+          KV_JSON=""
+          if [ -n "${KV_ID}" ]; then
+            KV_JSON=",\"kv_namespaces\":{\"ORDERS\":{\"namespace_id\":\"${KV_ID}\"}}"
+          fi
           curl -sS -X PATCH \
             "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d '{
-              "production_branch": "main",
-              "deployment_configs": {
-                "production": {
-                  "compatibility_date": "2026-06-25",
-                  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
-                  "env_vars": {
-                    "DEEPSEEK_BASE_URL": {"type":"plain_text","value":"https://api.deepseek.com"},
-                    "DEEPSEEK_MODEL": {"type":"plain_text","value":"deepseek-chat"},
-                    "NEXT_PUBLIC_BASE_URL": {"type":"plain_text","value":"https://putige-eh2.pages.dev"},
-                    "PAYMENT_MODE": {"type":"plain_text","value":"demo"}
-                  }
+            -d "{
+              \"production_branch\": \"main\",
+              \"deployment_configs\": {
+                \"production\": {
+                  \"compatibility_date\": \"2026-06-25\",
+                  \"compatibility_flags\": [\"nodejs_compat\", \"global_fetch_strictly_public\"],
+                  \"env_vars\": {
+                    \"DEEPSEEK_BASE_URL\": {\"type\":\"plain_text\",\"value\":\"https://api.deepseek.com\"},
+                    \"DEEPSEEK_MODEL\": {\"type\":\"plain_text\",\"value\":\"deepseek-chat\"},
+                    \"NEXT_PUBLIC_BASE_URL\": {\"type\":\"plain_text\",\"value\":\"https://putige-eh2.pages.dev\"},
+                    \"PAYMENT_MODE\": {\"type\":\"plain_text\",\"value\":\"xunhu\"},
+                    \"XUNHU_APP_ID\": {\"type\":\"plain_text\",\"value\":\"20211120137\"}
+                  }${KV_JSON}
                 }
               }
-            }' | tee /tmp/pages-env.json
+            }" | tee /tmp/pages-env.json
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
@@ -140,20 +189,58 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
+          CANONICAL="https://putige-eh2.pages.dev"
+
           curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | tee /tmp/pages-project.json
-          SUB=$(grep -o '"subdomain":"[^"]*"' /tmp/pages-project.json | head -1 | cut -d'"' -f4 || true)
-          if [ -z "$SUB" ]; then SUB="putige"; fi
-          if echo "$SUB" | grep -q '\.pages\.dev$'; then
-            PRIMARY="https://${SUB}"
-          else
-            PRIMARY="https://${SUB}.pages.dev"
+
+          SUB=$(python3 -c "
+          import json
+          with open('/tmp/pages-project.json') as f:
+              r = json.load(f).get('result') or {}
+          print(r.get('subdomain', ''))
+          " 2>/dev/null || true)
+
+          DEPLOY_URL=$(curl -sS \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige/deployments?env=production&per_page=1" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | python3 -c "
+          import json, sys
+          items = (json.load(sys.stdin).get('result') or [])
+          if not items:
+              sys.exit(0)
+          d = items[0]
+          aliases = d.get('aliases') or []
+          if aliases:
+              a = aliases[0]
+              print(a if a.startswith('http') else 'https://' + a)
+          elif d.get('url'):
+              print(d['url'])
+          " 2>/dev/null || true)
+
+          URLS=()
+          add_url() {
+            local u="$1"
+            [ -z "$u" ] && return
+            case " ${URLS[*]} " in *" $u "*) return ;; esac
+            URLS+=("$u")
+          }
+
+          add_url "$CANONICAL"
+          add_url "$DEPLOY_URL"
+          if [ -n "$SUB" ]; then
+            if echo "$SUB" | grep -q '\.pages\.dev$'; then
+              add_url "https://${SUB}"
+            else
+              add_url "https://${SUB}.pages.dev"
+            fi
           fi
-          echo "pages_url=${PRIMARY}" >> "$GITHUB_OUTPUT"
-          echo "Pages 地址: ${PRIMARY}"
-          for url in "$PRIMARY" "https://putige.pages.dev"; do
+
+          echo "待验证地址: ${URLS[*]}"
+          echo "pages_url=${CANONICAL}" >> "$GITHUB_OUTPUT"
+
+          for url in "${URLS[@]}"; do
             for i in 1 2 3 4 5 6; do
-              code=$(curl -sS -o /tmp/body.html -w "%{http_code}" "$url" || echo "000")
+              code=$(curl -sS -o /tmp/body.html -w "%{http_code}" -L "$url" || echo "000")
               echo "$url => HTTP $code"
               if [ "$code" = "200" ]; then
                 echo "verified_url=$url" >> "$GITHUB_OUTPUT"
@@ -162,11 +249,11 @@ jobs:
               sleep 15
             done
           done
-          echo "::error::Pages 未返回 HTTP 200"
+          echo "::error::Pages 未返回 HTTP 200（已尝试: ${URLS[*]}）"
           exit 1
 
       - name: Deployment info
         if: always() && !cancelled()
         run: |
           echo "部署完成"
-          echo "  主站: ${{ steps.verify.outputs.verified_url || steps.verify.outputs.pages_url || 'https://putige.pages.dev' }}"
+          echo "  主站: ${{ steps.verify.outputs.verified_url || steps.verify.outputs.pages_url || 'https://putige-eh2.pages.dev' }}"
