@@ -88,11 +88,12 @@ export default function QianPage() {
               <p className="text-amber-400/50 text-sm">典故：{stick.story}</p>
               <p className="text-amber-300/60 text-sm mt-2">{stick.meaning}</p>
             </div>
-            <Interpretation content={interpretation} loading={loading && !premiumInterpretation} />
-            {interpretation && (
+            {interpretation ? (
               <Paywall productId="qian_premium" onUnlock={() => stick && fetchInterpretation(stick, true)} preview={<Interpretation content={interpretation} />}>
                 <Interpretation content={premiumInterpretation} loading={loading} />
               </Paywall>
+            ) : (
+              <Interpretation content="" loading={loading} />
             )}
           </div>
         )}

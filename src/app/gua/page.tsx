@@ -108,11 +108,12 @@ export default function GuaPage() {
                 </div>
               ))}
             </div>
-            <Interpretation content={interpretation} loading={loading && !premiumInterpretation} />
-            {interpretation && (
+            {interpretation ? (
               <Paywall productId="gua_premium" onUnlock={() => result && interpret(result, true)} preview={<Interpretation content={interpretation} />}>
                 <Interpretation content={premiumInterpretation} loading={loading} />
               </Paywall>
+            ) : (
+              <Interpretation content="" loading={loading} />
             )}
           </div>
         )}

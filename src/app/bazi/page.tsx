@@ -147,11 +147,12 @@ export default function BaziPage() {
               </div>
               <p className="text-center text-sm mt-4">日主：<span className={wuXingColors[chart.dayMasterWuXing]}>{chart.dayMaster}</span>（{chart.dayMasterWuXing}）</p>
             </div>
-            <Interpretation content={interpretation} loading={loading && !premiumInterpretation} />
-            {interpretation && (
+            {interpretation ? (
               <Paywall productId="bazi_premium" onUnlock={() => run(true)} preview={<Interpretation content={interpretation} />}>
                 <Interpretation content={premiumInterpretation} loading={loading} />
               </Paywall>
+            ) : (
+              <Interpretation content="" loading={loading} />
             )}
           </div>
         )}

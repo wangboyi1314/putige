@@ -140,23 +140,28 @@ export function Paywall({ productId, onUnlock, children, preview }: PaywallProps
   if (unlocked) return <>{children}</>;
 
   return (
-    <div className="relative">
-      <div className="relative overflow-hidden rounded-xl">
-        {preview}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#1a1208]/60 to-[#1a1208] pointer-events-none" />
-      </div>
-      <div className="mt-6 text-center p-6 rounded-xl border border-amber-800/30 bg-amber-950/20">
+    <div className="relative space-y-4">
+      <div className="text-center p-5 sm:p-6 rounded-xl border border-amber-500/35 bg-gradient-to-b from-amber-950/50 to-amber-950/25 shadow-lg shadow-amber-900/20">
         <p className="text-amber-300 font-serif text-lg mb-1">{product.name}</p>
         <p className="text-amber-600/70 text-sm mb-4">{product.description}</p>
         <button
+          type="button"
           onClick={() => startPay()}
           disabled={loading}
-          className="px-8 py-3 bg-gradient-to-r from-amber-700 to-amber-600 text-amber-50 rounded-full font-medium hover:from-amber-600 hover:to-amber-500 transition-all disabled:opacity-50 shadow-lg shadow-amber-900/30"
+          className="w-full sm:w-auto px-10 py-3.5 bg-gradient-to-r from-amber-600 to-amber-500 text-amber-950 rounded-full font-semibold hover:from-amber-500 hover:to-amber-400 transition-all disabled:opacity-50 shadow-lg shadow-amber-900/40 text-base"
         >
           {loading && !showPay ? "处理中..." : `解锁完整详批 ¥${product.price}`}
         </button>
-        {error && !showPay && <p className="text-red-400 text-sm mt-2">{error}</p>}
-        <p className="text-amber-800/50 text-xs mt-3">支持微信 / 支付宝扫码支付</p>
+        {error && !showPay && <p className="text-red-400 text-sm mt-3">{error}</p>}
+        <p className="text-amber-400/45 text-xs mt-3">微信 / 支付宝扫码 · 付款后自动解锁</p>
+      </div>
+
+      <div className="relative overflow-hidden rounded-xl max-h-72 sm:max-h-80">
+        {preview}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#1a1208]/50 to-[#1a1208] pointer-events-none" />
+        <p className="absolute bottom-3 inset-x-0 text-center text-amber-400/70 text-xs pointer-events-none">
+          以上为免费预览 · 付费解锁完整详批
+        </p>
       </div>
 
       {showPay && !demoMode && (

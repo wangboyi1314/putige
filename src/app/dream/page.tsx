@@ -91,11 +91,12 @@ export default function DreamPage() {
               <p className="text-amber-400/60 text-sm italic mb-2">{selected.classic}</p>
               <p className="text-amber-200/70 text-sm">{selected.brief}</p>
             </div>
-            <Interpretation content={interpretation} loading={loading && !premiumInterpretation} />
-            {interpretation && (
+            {interpretation ? (
               <Paywall productId="dream_premium" onUnlock={() => selectDream(selected, true)} preview={<Interpretation content={interpretation} />}>
                 <Interpretation content={premiumInterpretation} loading={loading} />
               </Paywall>
+            ) : (
+              <Interpretation content="" loading={loading} />
             )}
           </div>
         )}
