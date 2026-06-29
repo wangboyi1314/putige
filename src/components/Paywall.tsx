@@ -109,7 +109,9 @@ export function Paywall({ productId, onUnlock, children, preview }: PaywallProps
         if (data.xunhuMode || data.merchantMode) setPolling(true);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "支付失败，请重试");
+      const msg = e instanceof Error ? e.message : "支付失败，请重试";
+      setError(msg);
+      setShowPay(false);
     } finally {
       setLoading(false);
     }

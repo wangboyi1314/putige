@@ -7,7 +7,7 @@
 	"vars": {
 		"DEEPSEEK_BASE_URL": "https://api.deepseek.com",
 		"DEEPSEEK_MODEL": "deepseek-chat",
-		"PAYMENT_MODE": "demo",
+		"PAYMENT_MODE": "xunhu",
 		"NEXT_PUBLIC_BASE_URL": "https://putige-eh2.pages.dev"
 	},
 	"compatibility_flags": [

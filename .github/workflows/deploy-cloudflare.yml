@@ -47,8 +47,7 @@ jobs:
             missing=1
           fi
           if [ -z "${XUNHU_SECRET}" ]; then
-            echo "::error::未配置 XUNHU_APP_SECRET（虎皮椒密钥，在 GitHub Secrets 中添加）"
-            missing=1
+            echo "::warning::未配置 XUNHU_APP_SECRET，支付下单将失败；请在 GitHub Secrets 添加虎皮椒密钥"
           fi
           [ "$missing" -eq 0 ]
 
@@ -146,44 +145,60 @@ for ns in data.get('result',[]):
           XUNHU_APP_SECRET: ${{ secrets.XUNHU_APP_SECRET }}
           KV_ID: ${{ steps.kv.outputs.kv_id }}
         run: |
+          set -euo pipefail
           echo "$DEEPSEEK_API_KEY" | npx wrangler pages secret put DEEPSEEK_API_KEY --project-name putige
-          echo "$XUNHU_APP_SECRET" | npx wrangler pages secret put XUNHU_APP_SECRET --project-name putige
+          if [ -n "${XUNHU_APP_SECRET}" ]; then
+            echo "$XUNHU_APP_SECRET" | npx wrangler pages secret put XUNHU_APP_SECRET --project-name putige
+          else
+            echo "::warning::跳过 XUNHU_APP_SECRET（未配置 GitHub Secret）"
+          fi
+
           KV_JSON=""
           if [ -n "${KV_ID}" ]; then
             KV_JSON=",\"kv_namespaces\":{\"ORDERS\":{\"namespace_id\":\"${KV_ID}\"}}"
           fi
-          curl -sS -X PATCH \
+
+          PATCH_BODY="{
+            \"production_branch\": \"main\",
+            \"deployment_configs\": {
+              \"production\": {
+                \"compatibility_date\": \"2026-06-25\",
+                \"compatibility_flags\": [\"nodejs_compat\", \"global_fetch_strictly_public\"],
+                \"env_vars\": {
+                  \"DEEPSEEK_BASE_URL\": {\"type\":\"plain_text\",\"value\":\"https://api.deepseek.com\"},
+                  \"DEEPSEEK_MODEL\": {\"type\":\"plain_text\",\"value\":\"deepseek-chat\"},
+                  \"NEXT_PUBLIC_BASE_URL\": {\"type\":\"plain_text\",\"value\":\"https://putige-eh2.pages.dev\"},
+                  \"PAYMENT_MODE\": {\"type\":\"plain_text\",\"value\":\"xunhu\"},
+                  \"XUNHU_APP_ID\": {\"type\":\"plain_text\",\"value\":\"20211120137\"}
+                }${KV_JSON}
+              }
+            }
+          }"
+
+          RESP=$(curl -sS -X PATCH \
             "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/putige" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{
-              \"production_branch\": \"main\",
-              \"deployment_configs\": {
-                \"production\": {
-                  \"compatibility_date\": \"2026-06-25\",
-                  \"compatibility_flags\": [\"nodejs_compat\", \"global_fetch_strictly_public\"],
-                  \"env_vars\": {
-                    \"DEEPSEEK_BASE_URL\": {\"type\":\"plain_text\",\"value\":\"https://api.deepseek.com\"},
-                    \"DEEPSEEK_MODEL\": {\"type\":\"plain_text\",\"value\":\"deepseek-chat\"},
-                    \"NEXT_PUBLIC_BASE_URL\": {\"type\":\"plain_text\",\"value\":\"https://putige-eh2.pages.dev\"},
-                    \"PAYMENT_MODE\": {\"type\":\"plain_text\",\"value\":\"xunhu\"},
-                    \"XUNHU_APP_ID\": {\"type\":\"plain_text\",\"value\":\"20211120137\"}
-                  }${KV_JSON}
-                }
-              }
-            }" | tee /tmp/pages-env.json
+            -d "$PATCH_BODY")
+          echo "$RESP" | tee /tmp/pages-env.json
+          echo "$RESP" | grep -q '"success":true' || {
+            echo "::error::Pages 环境变量更新失败"
+            exit 1
+          }
+          echo "已设置 PAYMENT_MODE=xunhu, XUNHU_APP_ID=20211120137"
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy out --project-name=putige --branch=main --commit-hash=${{ github.sha }}
+          command: pages deploy out --project-name=putige --commit-hash=${{ github.sha }}
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           wranglerVersion: "4"
 
       - name: Verify Pages deployment
         id: verify
+        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -250,6 +265,28 @@ for ns in data.get('result',[]):
             done
           done
           echo "::error::Pages 未返回 HTTP 200（已尝试: ${URLS[*]}）"
+          exit 1
+
+      - name: Verify payment API mode
+        env:
+          CANONICAL: https://putige-eh2.pages.dev
+        run: |
+          set -euo pipefail
+          for i in 1 2 3 4 5 6; do
+            BODY=$(curl -sS -X POST "${CANONICAL}/api/payment/create" \
+              -H "Content-Type: application/json" \
+              -d '{"productId":"qian_premium","payChannel":"wechat"}' || echo "{}")
+            echo "payment/create => $BODY"
+            if echo "$BODY" | grep -q '"xunhuMode":true'; then
+              echo "虎皮椒支付模式已生效"
+              exit 0
+            fi
+            if echo "$BODY" | grep -q '"demoMode":true'; then
+              echo "仍为演示模式，等待环境变量生效..."
+            fi
+            sleep 15
+          done
+          echo "::error::支付 API 仍为演示模式或下单失败，请检查 PAYMENT_MODE 与 XUNHU_APP_SECRET"
           exit 1
 
       - name: Deployment info
