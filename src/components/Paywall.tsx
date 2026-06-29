@@ -10,6 +10,7 @@ import {
   verifyPaidSession,
 } from "@/lib/paid-session";
 import { truncatePreview } from "@/lib/preview";
+import { parseGuardError } from "@/lib/interpret-api";
 
 interface PaywallProps {
   productId: ProductId;
@@ -24,6 +25,7 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [error, setError] = useState("");
+  const [errorTip, setErrorTip] = useState("");
   const [showPay, setShowPay] = useState(false);
   const [orderId, setOrderId] = useState("");
   const [amount, setAmount] = useState(0);
@@ -111,6 +113,7 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
     if (channel) setPayChannel(channel);
     setLoading(true);
     setError("");
+    setErrorTip("");
     try {
       const res = await fetch("/api/payment/create", {
         method: "POST",
@@ -121,7 +124,12 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "支付失败");
+      if (!res.ok) {
+        const g = parseGuardError(data);
+        setError(g.message);
+        setErrorTip(g.tip || "");
+        return;
+      }
 
       setOrderId(data.orderId);
       setAmount(data.amount);
@@ -205,7 +213,12 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
         >
           {loading && !showPay ? "正在拉起支付…" : `解锁完整详批 ¥${product.price}`}
         </button>
-        {error && !showPay && <p className="text-red-400 text-sm mt-3">{error}</p>}
+        {error && !showPay && (
+          <div className="mt-3 text-left rounded-lg border border-amber-500/25 bg-amber-950/30 p-3">
+            <p className="text-amber-200 text-sm">{error}</p>
+            {errorTip && <p className="text-amber-400/60 text-xs mt-1 leading-relaxed">💡 {errorTip}</p>}
+          </div>
+        )}
         <p className="text-amber-400/60 text-xs mt-3">微信 / 支付宝扫码 · 付款后自动解锁</p>
         {paidOrderId && (
           <p className="text-amber-600/50 text-[10px] mt-1">本会话已支付订单 {paidOrderId.slice(-8)}</p>

@@ -21,14 +21,24 @@ export interface PagesEnv {
   ORDERS?: KVNamespace;
 }
 
-export function json(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Access-Control-Allow-Origin": "*",
-    },
-  });
+export function json(data: unknown, status = 200, extraHeaders?: Record<string, string>): Response {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json; charset=utf-8",
+    "Access-Control-Allow-Origin": "*",
+    ...extraHeaders,
+  };
+  return new Response(JSON.stringify(data), { status, headers });
+}
+
+export function jsonError(
+  body: { error: string; code?: string; retryAfter?: number; tip?: string },
+  status: number
+): Response {
+  const extra: Record<string, string> = {};
+  if (body.retryAfter) {
+    extra["Retry-After"] = String(body.retryAfter);
+  }
+  return json(body, status, extra);
 }
 
 export function envFrom(context: { env: PagesEnv }): PagesEnv {

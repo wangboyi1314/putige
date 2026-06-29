@@ -11,7 +11,9 @@ import { Paywall } from "@/components/Paywall";
 import { ResultSection } from "@/components/ResultSection";
 import { AnalysisLoading } from "@/components/AnalysisLoading";
 import { ExtendedChartsSection } from "@/components/ExtendedChartsSection";
+import { GuardNotice } from "@/components/GuardNotice";
 import { saveRecord } from "@/lib/records";
+import { postInterpret, type GuardErrorDetail } from "@/lib/interpret-api";
 
 export default function ZiWeiPage() {
   const [masterId, setMasterId] = useState("huiming");
@@ -22,6 +24,7 @@ export default function ZiWeiPage() {
   const [premiumInterpretation, setPremiumInterpretation] = useState("");
   const [loading, setLoading] = useState(false);
   const [resultVersion, setResultVersion] = useState(0);
+  const [guardError, setGuardError] = useState<GuardErrorDetail | null>(null);
 
   async function analyze(isPremium: boolean, paidOrderId?: string) {
     const { year, month, day, hour, isLeapMonth } = birth;
@@ -33,23 +36,23 @@ export default function ZiWeiPage() {
       saveRecord({ type: "bazi", title: "紫微排盘", summary: result.inputLabel });
     }
     setLoading(true);
+    setGuardError(null);
     try {
-      const res = await fetch("/api/interpret", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "ziwei",
-          question: "请按紫微斗数体系分析命宫主星、十二宫格局与流年要点",
-          isPremium,
-          orderId: paidOrderId,
-          masterId,
-          data: { ...result, gender, system: "紫微斗数" },
-        }),
+      const api = await postInterpret({
+        type: "ziwei",
+        question: "请按紫微斗数体系分析命宫主星、十二宫格局与流年要点",
+        isPremium,
+        orderId: paidOrderId,
+        masterId,
+        data: { ...result, gender, system: "紫微斗数" },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "解读失败");
-      if (isPremium) setPremiumInterpretation(data.interpretation || "");
-      else setInterpretation(data.interpretation || "");
+      if (!api.ok) {
+        setGuardError(api.guard);
+        if (!isPremium) setInterpretation("");
+        return;
+      }
+      if (isPremium) setPremiumInterpretation(api.interpretation);
+      else setInterpretation(api.interpretation);
     } catch (e) {
       if (!isPremium) setInterpretation("");
       console.error(e);
@@ -96,6 +99,7 @@ export default function ZiWeiPage() {
                   : "排盘与解读已生成 · 向下查看并解锁完整详批"
             }
           >
+            <GuardNotice detail={guardError} onDismiss={() => setGuardError(null)} className="mb-4" />
             <div className="glass-panel p-6 rounded-xl ring-1 ring-purple-400/15">
               <p className="text-center text-amber-400/50 text-xs mb-1">输入：{chart.inputLabel}</p>
               <p className="text-center text-amber-200/60 text-sm mb-4">{chart.solarDate} · {chart.lunarDate} · 属{chart.shengXiao}</p>

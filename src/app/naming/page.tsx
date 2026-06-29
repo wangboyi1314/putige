@@ -9,7 +9,9 @@ import { ConsentNotice } from "@/components/ConsentNotice";
 import { BirthDateForm } from "@/components/BirthDateForm";
 import { ResultSection } from "@/components/ResultSection";
 import { AnalysisLoading } from "@/components/AnalysisLoading";
+import { GuardNotice } from "@/components/GuardNotice";
 import { saveRecord } from "@/lib/records";
+import { postInterpret, type GuardErrorDetail } from "@/lib/interpret-api";
 
 const STYLES = ["Classic", "Modern", "Poetic", "Simple"];
 const STYLE_LABELS: Record<string, string> = { Classic: "古典", Modern: "现代", Poetic: "诗意", Simple: "简约" };
@@ -28,6 +30,7 @@ export default function NamingPage() {
   const [full, setFull] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [guardError, setGuardError] = useState<GuardErrorDetail | null>(null);
   const [started, setStarted] = useState(false);
   const [resultVersion, setResultVersion] = useState(0);
 
@@ -46,6 +49,7 @@ export default function NamingPage() {
     }
 
     setError("");
+    setGuardError(null);
     const { year, month, day, hour, isLeapMonth } = birth;
     const chart = calculateBaZi({ year, month, day, hour, calendarType: "lunar", isLeapMonth });
 
@@ -56,39 +60,29 @@ export default function NamingPage() {
     }
 
     setLoading(true);
-    try {
-      const res = await fetch("/api/interpret", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "naming",
-          question: mode === "naming" ? `为${gender}孩取名，姓氏${surname}` : `测评姓名${surname}${givenName}`,
-          isPremium,
-          orderId: paidOrderId,
-          data: { ...chart, gender, surname, givenName, charCount, styles, generationChar, avoidChars, mode },
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "生成失败，请稍后重试");
-
-      if (isPremium) {
-        setFull(data.interpretation || "");
-      } else {
-        setPreview(data.interpretation || "");
-        const leap = isLeapMonth ? "闰" : "";
-        saveRecord({
-          type: "naming",
-          title: `${surname}姓${mode === "naming" ? "取名" : "测评"}`,
-          summary: `${gender} · 农历${year}年${leap}${month}月${day}日`,
-        });
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "生成失败，请稍后重试";
-      setError(msg);
+    const api = await postInterpret({
+      type: "naming",
+      question: mode === "naming" ? `为${gender}孩取名，姓氏${surname}` : `测评姓名${surname}${givenName}`,
+      isPremium,
+      orderId: paidOrderId,
+      data: { ...chart, gender, surname, givenName, charCount, styles, generationChar, avoidChars, mode },
+    });
+    if (!api.ok) {
+      setGuardError(api.guard);
+      setError(api.guard.message);
       if (!isPremium) setPreview("");
-    } finally {
-      setLoading(false);
+    } else if (isPremium) {
+      setFull(api.interpretation);
+    } else {
+      setPreview(api.interpretation);
+      const leap = isLeapMonth ? "闰" : "";
+      saveRecord({
+        type: "naming",
+        title: `${surname}姓${mode === "naming" ? "取名" : "测评"}`,
+        summary: `${gender} · 农历${year}年${leap}${month}月${day}日`,
+      });
     }
+    setLoading(false);
   }
 
   return (
@@ -180,6 +174,7 @@ export default function NamingPage() {
                     : "处理中…"
             }
           >
+            <GuardNotice detail={guardError} onDismiss={() => setGuardError(null)} className="mb-4" />
             {preview ? (
               <Paywall
                 productId="naming_premium"

@@ -1,9 +1,12 @@
+import type { ApiErrorBody } from "./api-errors";
+import { rateLimitMessage } from "./api-errors";
 import type { PagesEnv } from "./http";
 
 export interface RateLimitResult {
   ok: boolean;
   retryAfter?: number;
   error?: string;
+  body?: ApiErrorBody;
 }
 
 interface Bucket {
@@ -51,10 +54,11 @@ export async function checkRateLimit(
     return { ok: true };
   }
   if (existing.count >= limit) {
+    const retryAfter = existing.resetAt - now;
     return {
       ok: false,
-      retryAfter: existing.resetAt - now,
-      error: `请求过于频繁，请 ${existing.resetAt - now} 秒后再试`,
+      retryAfter,
+      error: `请求过于频繁，请 ${retryAfter} 秒后再试`,
     };
   }
   existing.count += 1;
@@ -77,13 +81,33 @@ export async function assertInterpretRateLimit(
   isPremium: boolean
 ): Promise<RateLimitResult> {
   const ip = clientIp(request);
-  const burst = await checkRateLimit(env, `interpret:burst:${ip}`, 5, 60);
-  if (!burst.ok) return burst;
+  const clientId = request.headers.get("X-Bodhi-Client")?.trim().slice(0, 64) || "";
+
+  const burst = await checkRateLimit(env, `interpret:burst:${ip}`, 4, 60);
+  if (!burst.ok) {
+    return { ...burst, body: rateLimitMessage(burst.retryAfter ?? 60, isPremium) };
+  }
+
+  if (clientId) {
+    const cidBurst = await checkRateLimit(env, `interpret:burst:cid:${clientId}`, 4, 60);
+    if (!cidBurst.ok) {
+      return { ...cidBurst, body: rateLimitMessage(cidBurst.retryAfter ?? 60, isPremium) };
+    }
+  }
 
   if (isPremium) {
-    return checkRateLimit(env, `interpret:premium:${ip}`, 25, 3600);
+    const premium = await checkRateLimit(env, `interpret:premium:${ip}`, 20, 3600);
+    if (!premium.ok) {
+      return { ...premium, body: rateLimitMessage(premium.retryAfter ?? 300, true) };
+    }
+    return { ok: true };
   }
-  return checkRateLimit(env, `interpret:free:${ip}`, 8, 3600);
+
+  const freeIp = await checkRateLimit(env, `interpret:free:${ip}`, 6, 3600);
+  if (!freeIp.ok) {
+    return { ...freeIp, body: rateLimitMessage(freeIp.retryAfter ?? 600, false) };
+  }
+  return { ok: true };
 }
 
 export async function assertPaymentCreateRateLimit(
@@ -91,5 +115,17 @@ export async function assertPaymentCreateRateLimit(
   request: Request
 ): Promise<RateLimitResult> {
   const ip = clientIp(request);
-  return checkRateLimit(env, `payment:create:${ip}`, 12, 3600);
+  const limit = await checkRateLimit(env, `payment:create:${ip}`, 10, 3600);
+  if (!limit.ok) {
+    return {
+      ...limit,
+      body: {
+        code: "rate_limit",
+        error: "创建订单过于频繁，请稍后再试",
+        retryAfter: limit.retryAfter,
+        tip: "若您正在尝试支付，请等待片刻后重试；频繁点击可能触发安全保护。",
+      },
+    };
+  }
+  return { ok: true };
 }

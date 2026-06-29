@@ -6,7 +6,9 @@ import { Paywall } from "@/components/Paywall";
 import { MasterPicker } from "@/components/MasterPicker";
 import { PageHero } from "@/components/SiteChrome";
 import { ConsentNotice } from "@/components/ConsentNotice";
+import { GuardNotice } from "@/components/GuardNotice";
 import { saveRecord } from "@/lib/records";
+import { postInterpret, type GuardErrorDetail } from "@/lib/interpret-api";
 
 type XiangType = "palm" | "face";
 type HandSide = "left" | "right";
@@ -22,44 +24,38 @@ export default function XiangPage() {
   const [full, setFull] = useState("");
   const [loading, setLoading] = useState(false);
   const [imageName, setImageName] = useState("");
+  const [guardError, setGuardError] = useState<GuardErrorDetail | null>(null);
 
   async function analyze(isPremium: boolean, paidOrderId?: string) {
     if (!imageName) return;
     setLoading(true);
-    try {
-      const res = await fetch("/api/interpret", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "xiang",
-          question: `重点看${focus}`,
-          isPremium,
-          orderId: paidOrderId,
-          masterId,
-          data: {
-            type: type === "palm" ? "手相" : "面相",
-            hand: type === "palm" ? (hand === "left" ? "左手（先天）" : "右手（后天）") : undefined,
-            focus,
-            imageName,
-            note: type === "palm"
-              ? "上传清晰掌心照，先看掌色、掌丘与主线走势，结合相学古籍印证。"
-              : "把额头、眉眼、鼻口、下庭等可见特征，落到人际、事业与当下状态上来讲。",
-          },
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "解读失败");
-      if (isPremium) setFull(data.interpretation || "");
-      else {
-        setPreview(data.interpretation || "");
-        saveRecord({ type: "xiang", title: type === "palm" ? "手相分析" : "面相分析", summary: focus });
-      }
-    } catch (e) {
+    setGuardError(null);
+    const api = await postInterpret({
+      type: "xiang",
+      question: `重点看${focus}`,
+      isPremium,
+      orderId: paidOrderId,
+      masterId,
+      data: {
+        type: type === "palm" ? "手相" : "面相",
+        hand: type === "palm" ? (hand === "left" ? "左手（先天）" : "右手（后天）") : undefined,
+        focus,
+        imageName,
+        note: type === "palm"
+          ? "上传清晰掌心照，先看掌色、掌丘与主线走势，结合相学古籍印证。"
+          : "把额头、眉眼、鼻口、下庭等可见特征，落到人际、事业与当下状态上来讲。",
+      },
+    });
+    if (!api.ok) {
+      setGuardError(api.guard);
       if (!isPremium) setPreview("");
-      console.error(e);
-    } finally {
-      setLoading(false);
+    } else if (isPremium) {
+      setFull(api.interpretation);
+    } else {
+      setPreview(api.interpretation);
+      saveRecord({ type: "xiang", title: type === "palm" ? "手相分析" : "面相分析", summary: focus });
     }
+    setLoading(false);
   }
 
   return (
@@ -121,13 +117,16 @@ export default function XiangPage() {
         </div>
 
         {preview && (
-          <Paywall
-            productId="xiang_premium"
-            previewContent={preview}
-            onUnlock={(orderId) => analyze(true, orderId)}
-          >
-            <Interpretation content={full} loading={loading} />
-          </Paywall>
+          <>
+            <GuardNotice detail={guardError} onDismiss={() => setGuardError(null)} className="mb-4" />
+            <Paywall
+              productId="xiang_premium"
+              previewContent={preview}
+              onUnlock={(orderId) => analyze(true, orderId)}
+            >
+              <Interpretation content={full} loading={loading} />
+            </Paywall>
+          </>
         )}
       </div>
     </div>

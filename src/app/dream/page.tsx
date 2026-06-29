@@ -8,7 +8,9 @@ import { PageHero } from "@/components/SiteChrome";
 import { ConsentNotice } from "@/components/ConsentNotice";
 import { ResultSection } from "@/components/ResultSection";
 import { AnalysisLoading } from "@/components/AnalysisLoading";
+import { GuardNotice } from "@/components/GuardNotice";
 import { saveRecord } from "@/lib/records";
+import { postInterpret, type GuardErrorDetail } from "@/lib/interpret-api";
 
 export default function DreamPage() {
   const [query, setQuery] = useState("");
@@ -19,6 +21,7 @@ export default function DreamPage() {
   const [premiumInterpretation, setPremiumInterpretation] = useState("");
   const [loading, setLoading] = useState(false);
   const [resultVersion, setResultVersion] = useState(0);
+  const [guardError, setGuardError] = useState<GuardErrorDetail | null>(null);
 
   function handleSearch() {
     const found = query ? searchDream(query) : category ? getDreamsByCategory(category) : DREAM_ENTRIES.slice(0, 12);
@@ -36,22 +39,17 @@ export default function DreamPage() {
       saveRecord({ type: "dream", title: `梦见${dream.keyword}`, summary: dream.brief.slice(0, 40) });
     }
     setLoading(true);
-    try {
-      const res = await fetch("/api/interpret", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "dream", question: query, isPremium, orderId: paidOrderId, data: dream }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "解读失败");
-      if (isPremium) setPremiumInterpretation(data.interpretation || "");
-      else setInterpretation(data.interpretation || "");
-    } catch (e) {
+    setGuardError(null);
+    const api = await postInterpret({ type: "dream", question: query, isPremium, orderId: paidOrderId, data: dream });
+    if (!api.ok) {
+      setGuardError(api.guard);
       if (!isPremium) setInterpretation("");
-      console.error(e);
-    } finally {
-      setLoading(false);
+    } else if (isPremium) {
+      setPremiumInterpretation(api.interpretation);
+    } else {
+      setInterpretation(api.interpretation);
     }
+    setLoading(false);
   }
 
   const luckColor: Record<string, string> = { 吉: "text-green-400", 凶: "text-red-400", 平: "text-amber-400" };
@@ -100,6 +98,7 @@ export default function DreamPage() {
                 : "解读在下方 · 可解锁完整详批"
             }
           >
+            <GuardNotice detail={guardError} onDismiss={() => setGuardError(null)} className="mb-4" />
             <button onClick={() => { setSelected(null); setInterpretation(""); }} className="text-amber-400/50 text-sm">← 返回</button>
             <div className="glass-panel p-6">
               <h2 className="text-amber-200 font-serif text-xl mb-2">梦见{selected.keyword}</h2>

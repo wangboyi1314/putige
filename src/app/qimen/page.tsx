@@ -9,7 +9,9 @@ import { Paywall } from "@/components/Paywall";
 import { ResultSection } from "@/components/ResultSection";
 import { AnalysisLoading } from "@/components/AnalysisLoading";
 import { ExtendedChartsSection } from "@/components/ExtendedChartsSection";
+import { GuardNotice } from "@/components/GuardNotice";
 import { saveRecord } from "@/lib/records";
+import { postInterpret, type GuardErrorDetail } from "@/lib/interpret-api";
 
 export default function QiMenPage() {
   const [masterId, setMasterId] = useState("xuanzhen");
@@ -20,6 +22,7 @@ export default function QiMenPage() {
   const [started, setStarted] = useState(false);
   const [resultVersion, setResultVersion] = useState(0);
   const [chartDatetime, setChartDatetime] = useState("");
+  const [guardError, setGuardError] = useState<GuardErrorDetail | null>(null);
 
   async function analyze(isPremium: boolean, paidOrderId?: string) {
     if (!question.trim()) return;
@@ -30,30 +33,30 @@ export default function QiMenPage() {
       saveRecord({ type: "gua", title: "奇门起局", summary: question.slice(0, 40) });
     }
     setLoading(true);
+    setGuardError(null);
     const now = new Date();
     const datetime = now.toISOString();
     if (!isPremium) setChartDatetime(datetime);
     try {
-      const res = await fetch("/api/interpret", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "qimen",
-          question,
-          isPremium,
-          orderId: paidOrderId,
-          masterId,
-          data: {
-            system: "奇门遁甲",
-            datetime,
-            note: "请以奇门遁甲九宫八门、天盘地盘人盘分析当前时空格局与行事宜忌",
-          },
-        }),
+      const api = await postInterpret({
+        type: "qimen",
+        question,
+        isPremium,
+        orderId: paidOrderId,
+        masterId,
+        data: {
+          system: "奇门遁甲",
+          datetime,
+          note: "请以奇门遁甲九宫八门、天盘地盘人盘分析当前时空格局与行事宜忌",
+        },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "解读失败");
-      if (isPremium) setPremiumInterpretation(data.interpretation || "");
-      else setInterpretation(data.interpretation || "");
+      if (!api.ok) {
+        setGuardError(api.guard);
+        if (!isPremium) setInterpretation("");
+        return;
+      }
+      if (isPremium) setPremiumInterpretation(api.interpretation);
+      else setInterpretation(api.interpretation);
     } catch (e) {
       if (!isPremium) setInterpretation("");
       console.error(e);
@@ -105,6 +108,7 @@ export default function QiMenPage() {
                   : "起局与解读已生成 · 向下查看并解锁完整详批"
             }
           >
+            <GuardNotice detail={guardError} onDismiss={() => setGuardError(null)} className="mb-4" />
             <div className="glass-panel p-6 rounded-xl ring-1 ring-teal-400/15 text-center">
               <p className="text-amber-400/50 text-xs mb-2">奇门遁甲 · 时空起局</p>
               <p className="text-amber-100 text-sm leading-relaxed">所问：{question}</p>

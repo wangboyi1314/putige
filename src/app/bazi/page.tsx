@@ -10,7 +10,9 @@ import { ConsentNotice } from "@/components/ConsentNotice";
 import { BirthDateForm, SHI_CHEN } from "@/components/BirthDateForm";
 import { ResultSection } from "@/components/ResultSection";
 import { AnalysisLoading } from "@/components/AnalysisLoading";
+import { GuardNotice } from "@/components/GuardNotice";
 import { saveRecord } from "@/lib/records";
+import { postInterpret, type GuardErrorDetail } from "@/lib/interpret-api";
 
 function DateStepper({ label, value, set, min, max }: { label: string; value: number; set: (v: number) => void; min: number; max: number }) {
   return (
@@ -36,6 +38,7 @@ export default function BaziPage() {
   const [premiumInterpretation, setPremiumInterpretation] = useState("");
   const [loading, setLoading] = useState(false);
   const [resultVersion, setResultVersion] = useState(0);
+  const [guardError, setGuardError] = useState<GuardErrorDetail | null>(null);
 
   async function run(isPremium: boolean, paidOrderId?: string) {
     const { year, month, day, hour, isLeapMonth } = birth;
@@ -54,23 +57,23 @@ export default function BaziPage() {
       saveRecord({ type: "bazi", title: "八字排盘", summary: result.inputLabel });
     }
     setLoading(true);
+    setGuardError(null);
     try {
-      const res = await fetch("/api/interpret", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "bazi",
-          question,
-          isPremium,
-          orderId: paidOrderId,
-          masterId,
-          data: { ...result, gender },
-        }),
+      const api = await postInterpret({
+        type: "bazi",
+        question,
+        isPremium,
+        orderId: paidOrderId,
+        masterId,
+        data: { ...result, gender },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "解读失败");
-      if (isPremium) setPremiumInterpretation(data.interpretation || "");
-      else setInterpretation(data.interpretation || "");
+      if (!api.ok) {
+        setGuardError(api.guard);
+        if (!isPremium) setInterpretation("");
+        return;
+      }
+      if (isPremium) setPremiumInterpretation(api.interpretation);
+      else setInterpretation(api.interpretation);
     } catch (e) {
       if (!isPremium) setInterpretation("");
       console.error(e);
@@ -168,6 +171,7 @@ export default function BaziPage() {
                   : "排盘与解读已生成 · 向下查看并解锁完整详批"
             }
           >
+            <GuardNotice detail={guardError} onDismiss={() => setGuardError(null)} className="mb-4" />
             <div className="glass-panel p-6 rounded-xl ring-1 ring-amber-400/15">
               <p className="text-center text-amber-400/50 text-xs mb-1">输入：{chart.inputLabel}</p>
               <p className="text-center text-amber-200/60 text-sm mb-4">{chart.solarDate} · {chart.lunarDate} · 属{chart.shengXiao}</p>

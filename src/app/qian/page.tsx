@@ -9,7 +9,9 @@ import { PageHero } from "@/components/SiteChrome";
 import { ConsentNotice } from "@/components/ConsentNotice";
 import { ResultSection } from "@/components/ResultSection";
 import { AnalysisLoading } from "@/components/AnalysisLoading";
+import { GuardNotice } from "@/components/GuardNotice";
 import { saveRecord } from "@/lib/records";
+import { postInterpret, type GuardErrorDetail } from "@/lib/interpret-api";
 
 export default function QianPage() {
   const [masterId, setMasterId] = useState("huiming");
@@ -20,32 +22,28 @@ export default function QianPage() {
   const [premiumInterpretation, setPremiumInterpretation] = useState("");
   const [loading, setLoading] = useState(false);
   const [resultVersion, setResultVersion] = useState(0);
+  const [guardError, setGuardError] = useState<GuardErrorDetail | null>(null);
 
   async function fetchInterpretation(target: QianStick, isPremium: boolean, paidOrderId?: string) {
     setLoading(true);
-    try {
-      const res = await fetch("/api/interpret", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "qian",
-          question,
-          isPremium,
-          orderId: paidOrderId,
-          masterId,
-          data: { ...target, signType: "关帝灵签" },
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "解读失败");
-      if (isPremium) setPremiumInterpretation(data.interpretation || "");
-      else setInterpretation(data.interpretation || "");
-    } catch (e) {
+    setGuardError(null);
+    const api = await postInterpret({
+      type: "qian",
+      question,
+      isPremium,
+      orderId: paidOrderId,
+      masterId,
+      data: { ...target, signType: "关帝灵签" },
+    });
+    if (!api.ok) {
+      setGuardError(api.guard);
       if (!isPremium) setInterpretation("");
-      console.error(e);
-    } finally {
-      setLoading(false);
+    } else if (isPremium) {
+      setPremiumInterpretation(api.interpretation);
+    } else {
+      setInterpretation(api.interpretation);
     }
+    setLoading(false);
   }
 
   async function handleDraw() {
@@ -101,6 +99,7 @@ export default function QianPage() {
                 : "签文与解读在下方 · 可解锁完整详批"
             }
           >
+            <GuardNotice detail={guardError} onDismiss={() => setGuardError(null)} className="mb-4" />
             <div className="glass-panel p-8 rounded-xl text-center">
               <p className="text-amber-400/50 text-sm">关帝灵签 · 第 {stick.number} 签 / 100</p>
               <p className={`text-2xl font-serif my-3 ${levelColor[stick.level]}`}>{stick.level}签</p>
