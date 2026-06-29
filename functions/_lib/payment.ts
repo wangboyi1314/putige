@@ -3,7 +3,9 @@ export type ProductId =
   | "qian_premium"
   | "bazi_premium"
   | "ziwei_premium"
+  | "ziwei_charts_premium"
   | "qimen_premium"
+  | "qimen_charts_premium"
   | "dream_premium"
   | "xiang_premium"
   | "naming_premium"
@@ -46,11 +48,25 @@ export const PRODUCTS: Record<ProductId, Product> = {
     price: 18.8,
     currency: "CNY",
   },
+  ziwei_charts_premium: {
+    id: "ziwei_charts_premium",
+    name: "紫微十二宫星曜表",
+    description: "完整十二宫主星辅星表 + 80+ 专项盘深度解读",
+    price: 12.8,
+    currency: "CNY",
+  },
   qimen_premium: {
     id: "qimen_premium",
     name: "奇门遁甲详批",
     description: "九宫八门格局、时机方位与行事宜忌深度分析",
     price: 8.8,
+    currency: "CNY",
+  },
+  qimen_charts_premium: {
+    id: "qimen_charts_premium",
+    name: "奇门九宫专项盘",
+    description: "完整九宫盘布局 + 80+ 专项局深度推演",
+    price: 9.9,
     currency: "CNY",
   },
   dream_premium: {

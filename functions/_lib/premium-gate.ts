@@ -1,12 +1,15 @@
 import type { DivinationType } from "./deepseek";
 import type { PagesEnv } from "./http";
 import { getOrderAsync } from "./orders-store";
+import { canUsePremiumOrder } from "./order-usage";
 import { isDemoMode, isQrPaymentMode, type ProductId } from "./payment";
 
 const TYPE_TO_PRODUCT: Partial<Record<DivinationType, ProductId>> = {
   bazi: "bazi_premium",
   ziwei: "ziwei_premium",
+  ziwei_charts: "ziwei_charts_premium",
   qimen: "qimen_premium",
+  qimen_charts: "qimen_charts_premium",
   qian: "qian_premium",
   gua: "gua_premium",
   dream: "dream_premium",
@@ -41,6 +44,11 @@ export async function assertPremiumAccess(
   }
   if (order.status !== "paid") {
     return { ok: false, error: "订单未支付，请先完成付款", status: 402 };
+  }
+
+  const canUse = await canUsePremiumOrder(env, orderId);
+  if (!canUse) {
+    return { ok: false, error: "该订单详批次数已用完，请重新购买", status: 403 };
   }
 
   return { ok: true };

@@ -10,6 +10,7 @@ import { BirthDateForm } from "@/components/BirthDateForm";
 import { Paywall } from "@/components/Paywall";
 import { ResultSection } from "@/components/ResultSection";
 import { AnalysisLoading } from "@/components/AnalysisLoading";
+import { ExtendedChartsSection } from "@/components/ExtendedChartsSection";
 import { saveRecord } from "@/lib/records";
 
 export default function ZiWeiPage() {
@@ -123,7 +124,19 @@ export default function ZiWeiPage() {
           </ResultSection>
         )}
 
-        <p className="text-amber-400/35 text-xs text-center mt-6">完整十二宫星曜表与 80+ 专项盘持续扩充中</p>
+        {chart && (
+          <ExtendedChartsSection
+            enabled={!!interpretation}
+            productId="ziwei_charts_premium"
+            chartType="ziwei_charts"
+            title="完整十二宫星曜表 · 80+ 专项盘"
+            subtitle="命宫至父母宫逐星详解，含流年、大限、四化等专项盘深度解读"
+            question="请输出完整十二宫星曜表与最相关的专项盘深度解读"
+            masterId={masterId}
+            data={{ ...chart, gender, system: "紫微斗数" }}
+            resetKey={resultVersion}
+          />
+        )}
       </div>
     </div>
   );

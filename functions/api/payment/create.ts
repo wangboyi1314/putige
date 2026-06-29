@@ -18,10 +18,17 @@ import {
   sanitizeTradeOrderId,
 } from "../../_lib/xunhupay";
 import { envFrom, json, type PagesEnv } from "../../_lib/http";
+import { assertPaymentCreateRateLimit } from "../../_lib/rate-limit";
 
 export const onRequestPost: PagesFunction<PagesEnv> = async (context) => {
   try {
     const env = envFrom(context);
+
+    const rate = await assertPaymentCreateRateLimit(env, context.request);
+    if (!rate.ok) {
+      return json({ error: rate.error || "请求过于频繁" }, 429);
+    }
+
     const body = (await context.request.json()) as {
       productId: ProductId;
       payChannel?: "wechat" | "alipay";

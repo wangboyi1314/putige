@@ -8,6 +8,7 @@ import { Interpretation } from "@/components/Interpretation";
 import { Paywall } from "@/components/Paywall";
 import { ResultSection } from "@/components/ResultSection";
 import { AnalysisLoading } from "@/components/AnalysisLoading";
+import { ExtendedChartsSection } from "@/components/ExtendedChartsSection";
 import { saveRecord } from "@/lib/records";
 
 export default function QiMenPage() {
@@ -18,6 +19,7 @@ export default function QiMenPage() {
   const [loading, setLoading] = useState(false);
   const [started, setStarted] = useState(false);
   const [resultVersion, setResultVersion] = useState(0);
+  const [chartDatetime, setChartDatetime] = useState("");
 
   async function analyze(isPremium: boolean, paidOrderId?: string) {
     if (!question.trim()) return;
@@ -29,6 +31,8 @@ export default function QiMenPage() {
     }
     setLoading(true);
     const now = new Date();
+    const datetime = now.toISOString();
+    if (!isPremium) setChartDatetime(datetime);
     try {
       const res = await fetch("/api/interpret", {
         method: "POST",
@@ -41,7 +45,7 @@ export default function QiMenPage() {
           masterId,
           data: {
             system: "奇门遁甲",
-            datetime: now.toISOString(),
+            datetime,
             note: "请以奇门遁甲九宫八门、天盘地盘人盘分析当前时空格局与行事宜忌",
           },
         }),
@@ -119,7 +123,24 @@ export default function QiMenPage() {
           </ResultSection>
         )}
 
-        <p className="text-amber-400/35 text-xs text-center mt-6">完整九宫盘与 80+ 专项局持续扩充中</p>
+        {started && interpretation && chartDatetime && (
+          <ExtendedChartsSection
+            enabled
+            productId="qimen_charts_premium"
+            chartType="qimen_charts"
+            title="完整九宫盘 · 80+ 专项局"
+            subtitle="天盘地盘人盘九宫布局，含求财、出行、谈判等专项局深度推演"
+            question={question}
+            masterId={masterId}
+            data={{
+              system: "奇门遁甲",
+              datetime: chartDatetime,
+              question,
+              note: "请输出完整九宫盘与最相关的专项局深度推演",
+            }}
+            resetKey={resultVersion}
+          />
+        )}
       </div>
     </div>
   );
