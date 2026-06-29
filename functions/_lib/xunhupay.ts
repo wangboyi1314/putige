@@ -94,13 +94,17 @@ export async function createXunhuPayment(
 
   payload.hash = xunhuHash(payload, params.channel.appSecret);
 
-  const res = await fetch(gateway, {
+  const body = new URLSearchParams(
+    Object.fromEntries(Object.entries(payload).map(([k, v]) => [k, String(v)]))
+  );
+
+  let res = await fetch(gateway, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
   });
 
-  const data = (await res.json()) as {
+  let data = (await res.json()) as {
     errcode?: number;
     errmsg?: string;
     url?: string;
@@ -108,6 +112,16 @@ export async function createXunhuPayment(
     openid?: string;
     hash?: string;
   };
+
+  if (data.errcode !== 0 && gateway === DEFAULT_GATEWAY) {
+    const alt = "https://api.dpweixin.com/payment/do.html";
+    res = await fetch(alt, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    });
+    data = (await res.json()) as typeof data;
+  }
 
   if (data.errcode !== 0 || !data.url) {
     throw new Error(data.errmsg || "虎皮椒下单失败");
