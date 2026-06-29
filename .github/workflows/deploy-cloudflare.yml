@@ -192,7 +192,7 @@ for ns in data.get('result',[]):
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy out --project-name=putige --commit-hash=${{ github.sha }} --config wrangler.pages.toml
+          command: pages deploy out --project-name=putige --commit-hash=${{ github.sha }}
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           wranglerVersion: "4"
 

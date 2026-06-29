@@ -1,21 +1,18 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"main": ".open-next/worker.js",
 	"name": "putige",
 	"account_id": "70ebb96ad3d3a7c5e308a26ac50862dc",
 	"compatibility_date": "2026-06-25",
-	"vars": {
-		"DEEPSEEK_BASE_URL": "https://api.deepseek.com",
-		"DEEPSEEK_MODEL": "deepseek-chat",
-		"PAYMENT_MODE": "xunhu",
-		"NEXT_PUBLIC_BASE_URL": "https://putige-eh2.pages.dev"
-	},
+	"pages_build_output_dir": "out",
 	"compatibility_flags": [
 		"nodejs_compat",
 		"global_fetch_strictly_public"
 	],
-	"assets": {
-		"directory": ".open-next/assets",
-		"binding": "ASSETS"
+	"vars": {
+		"DEEPSEEK_BASE_URL": "https://api.deepseek.com",
+		"DEEPSEEK_MODEL": "deepseek-chat",
+		"PAYMENT_MODE": "xunhu",
+		"XUNHU_APP_ID": "20211120137",
+		"NEXT_PUBLIC_BASE_URL": "https://putige-eh2.pages.dev"
 	}
 }
