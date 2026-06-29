@@ -80,7 +80,6 @@ export async function createXunhuPayment(params: {
     time: Math.floor(Date.now() / 1000),
     notify_url: params.notifyUrl,
     nonce_str: randomNonce(16),
-    plugins: "bodhi",
   };
 
   if (params.returnUrl) {
@@ -91,10 +90,8 @@ export async function createXunhuPayment(params: {
 
   const res = await fetch(gateway, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(
-      Object.fromEntries(Object.entries(payload).map(([k, v]) => [k, String(v)]))
-    ),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
 
   const data = (await res.json()) as {

@@ -44,8 +44,8 @@ export function sanitizeTradeOrderId(orderId: string): string {
 }
 
 export function getXunhuWechatChannel(env?: RuntimeEnv): XunhuChannel | null {
-  const appId = envGet("XUNHU_APP_ID", env) || "20211120137";
-  const appSecret = envGet("XUNHU_APP_SECRET", env);
+  const appId = (envGet("XUNHU_APP_ID", env) || "20211120137").trim();
+  const appSecret = envGet("XUNHU_APP_SECRET", env)?.trim();
   if (!appSecret) return null;
   return { appId, appSecret, label: "微信" };
 }
@@ -86,7 +86,6 @@ export async function createXunhuPayment(
     time: Math.floor(Date.now() / 1000),
     notify_url: params.notifyUrl,
     nonce_str: randomNonce(16),
-    plugins: "bodhi",
   };
 
   if (params.returnUrl) {
@@ -97,10 +96,8 @@ export async function createXunhuPayment(
 
   const res = await fetch(gateway, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(
-      Object.fromEntries(Object.entries(payload).map(([k, v]) => [k, String(v)]))
-    ),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
 
   const data = (await res.json()) as {

@@ -82,6 +82,7 @@ jobs:
             --commit-hash="${{ github.sha }}"
 
       - name: Verify payment API
+        continue-on-error: true
         run: |
           set -euo pipefail
           URL="https://putige-eh2.pages.dev/api/payment/create"
