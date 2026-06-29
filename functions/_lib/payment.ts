@@ -2,6 +2,8 @@ export type ProductId =
   | "gua_premium"
   | "qian_premium"
   | "bazi_premium"
+  | "ziwei_premium"
+  | "qimen_premium"
   | "dream_premium"
   | "xiang_premium"
   | "naming_premium"
@@ -35,6 +37,20 @@ export const PRODUCTS: Record<ProductId, Product> = {
     name: "八字精批",
     description: "四柱格局、五行喜忌、流年运势完整解读",
     price: 18.8,
+    currency: "CNY",
+  },
+  ziwei_premium: {
+    id: "ziwei_premium",
+    name: "紫微斗数详批",
+    description: "命宫十二宫、主星辅星格局与流年际遇完整解读",
+    price: 18.8,
+    currency: "CNY",
+  },
+  qimen_premium: {
+    id: "qimen_premium",
+    name: "奇门遁甲详批",
+    description: "九宫八门格局、时机方位与行事宜忌深度分析",
+    price: 8.8,
     currency: "CNY",
   },
   dream_premium: {

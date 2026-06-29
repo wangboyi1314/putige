@@ -5,6 +5,8 @@ import { isDemoMode, isQrPaymentMode, type ProductId } from "./payment";
 
 const TYPE_TO_PRODUCT: Partial<Record<DivinationType, ProductId>> = {
   bazi: "bazi_premium",
+  ziwei: "ziwei_premium",
+  qimen: "qimen_premium",
   qian: "qian_premium",
   gua: "gua_premium",
   dream: "dream_premium",

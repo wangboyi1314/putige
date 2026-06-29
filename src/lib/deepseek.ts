@@ -1,6 +1,6 @@
 import { getMaster } from "./masters";
 
-export type DivinationType = "gua" | "qian" | "bazi" | "dream" | "huangli" | "xiang" | "naming";
+export type DivinationType = "gua" | "qian" | "bazi" | "ziwei" | "qimen" | "dream" | "huangli" | "xiang" | "naming";
 
 const CLASSICAL_SYSTEM_PROMPT = `你是一位精通中国传统命理文化的资深解读师，学识渊博，熟读以下经典：
 《周易》《周易正义》《周易本义》《周易尚氏学》
@@ -35,6 +35,20 @@ const TYPE_PROMPTS: Record<DivinationType, string> = {
 - 性格特质与人生大势
 - 近年流年运势要点
 - 针对问卜者所关心事项的分析`,
+
+  ziwei: `你正在解读紫微斗数命盘。请围绕紫微体系展开：
+- 命宫主星与三方四正格局
+- 十二宫位要点（财帛、官禄、夫妻、迁移等）
+- 主星辅星组合与人生大势
+- 近年流年际遇要点
+- 针对问卜者所关心事项的分析`,
+
+  qimen: `你正在解读奇门遁甲局。请围绕时空格局展开：
+- 天盘地盘人盘与九宫八门
+- 用神、值符值使与格局吉凶
+- 针对所问之事的时机判断
+- 方位选择与行事宜忌
+- 具体可行的趋避建议`,
 
   dream: `你正在解读梦境。请结合周公解梦传统：
 - 梦中意象的传统释义
