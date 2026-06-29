@@ -7,6 +7,8 @@ import { Paywall } from "@/components/Paywall";
 import { PageHero } from "@/components/SiteChrome";
 import { ConsentNotice } from "@/components/ConsentNotice";
 import { BirthDateForm } from "@/components/BirthDateForm";
+import { ResultSection } from "@/components/ResultSection";
+import { AnalysisLoading } from "@/components/AnalysisLoading";
 import { saveRecord } from "@/lib/records";
 
 const STYLES = ["Classic", "Modern", "Poetic", "Simple"];
@@ -25,15 +27,34 @@ export default function NamingPage() {
   const [preview, setPreview] = useState("");
   const [full, setFull] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [started, setStarted] = useState(false);
+  const [resultVersion, setResultVersion] = useState(0);
 
   function toggleStyle(s: string) {
     setStyles((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : prev.length < 3 ? [...prev, s] : prev));
   }
 
-  async function run(isPremium: boolean) {
-    if (!surname.trim()) return;
+  async function run(isPremium: boolean, paidOrderId?: string) {
+    if (!surname.trim()) {
+      setError("请填写姓氏");
+      return;
+    }
+    if (mode === "eval" && !givenName.trim()) {
+      setError("请填写要测评的名字");
+      return;
+    }
+
+    setError("");
     const { year, month, day, hour, isLeapMonth } = birth;
     const chart = calculateBaZi({ year, month, day, hour, calendarType: "lunar", isLeapMonth });
+
+    if (!isPremium) {
+      setStarted(true);
+      setFull("");
+      setResultVersion((v) => v + 1);
+    }
+
     setLoading(true);
     try {
       const res = await fetch("/api/interpret", {
@@ -43,12 +64,16 @@ export default function NamingPage() {
           type: "naming",
           question: mode === "naming" ? `为${gender}孩取名，姓氏${surname}` : `测评姓名${surname}${givenName}`,
           isPremium,
+          orderId: paidOrderId,
           data: { ...chart, gender, surname, givenName, charCount, styles, generationChar, avoidChars, mode },
         }),
       });
       const data = await res.json();
-      if (isPremium) setFull(data.interpretation || "");
-      else {
+      if (!res.ok) throw new Error(data.error || "生成失败，请稍后重试");
+
+      if (isPremium) {
+        setFull(data.interpretation || "");
+      } else {
         setPreview(data.interpretation || "");
         const leap = isLeapMonth ? "闰" : "";
         saveRecord({
@@ -57,6 +82,10 @@ export default function NamingPage() {
           summary: `${gender} · 农历${year}年${leap}${month}月${day}日`,
         });
       }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "生成失败，请稍后重试";
+      setError(msg);
+      if (!isPremium) setPreview("");
     } finally {
       setLoading(false);
     }
@@ -95,7 +124,7 @@ export default function NamingPage() {
             </div>
           </div>
 
-          <BirthDateForm value={birth} onChange={setBirth} yearMin={2010} yearMax={2025} />
+          <BirthDateForm value={birth} onChange={setBirth} yearMin={2010} yearMax={2026} />
 
           {mode === "naming" && (
             <>
@@ -123,16 +152,57 @@ export default function NamingPage() {
             先看农历生辰八字，再看五行喜忌、音韵笔画与古籍典出，缺一不可。
           </div>
 
-          <button onClick={() => run(false)} disabled={loading || !surname.trim()} className="w-full py-3 bg-gradient-to-r from-cyan-800 to-sky-700 text-amber-50 rounded-xl disabled:opacity-40">
-            {loading ? "生成中..." : mode === "naming" ? "开始专业起名" : "开始姓名测评"}
+          <button
+            onClick={() => run(false)}
+            disabled={loading || !surname.trim()}
+            className="w-full py-3 bg-gradient-to-r from-cyan-800 to-sky-700 text-amber-50 rounded-xl disabled:opacity-40"
+          >
+            {loading ? "正在生成名字方案…" : mode === "naming" ? "开始专业起名" : "开始姓名测评"}
           </button>
+          {!started && (
+            <p className="text-center text-amber-500/50 text-xs">点击后结果将显示在下方，付费可解锁完整取名方案</p>
+          )}
+          {error && !started && <p className="text-red-400 text-sm text-center">{error}</p>}
           <ConsentNotice topic="生辰信息与起名偏好" />
         </div>
 
-        {preview && (
-          <Paywall productId="naming_premium" onUnlock={() => run(true)} preview={<Interpretation content={preview} />}>
-            <Interpretation content={full} loading={loading} />
-          </Paywall>
+        {started && (
+          <ResultSection
+            active
+            scrollKey={resultVersion}
+            banner={
+              loading && !preview
+                ? "正在结合八字喜忌生成名字，请稍候…"
+                : preview
+                  ? "取名方案已生成 · 向下解锁完整候选名字"
+                  : error
+                    ? "生成失败，请重试"
+                    : "处理中…"
+            }
+          >
+            {preview ? (
+              <Paywall
+                productId="naming_premium"
+                previewContent={preview}
+                onUnlock={(orderId) => run(true, orderId)}
+              >
+                <Interpretation content={full} loading={loading} />
+              </Paywall>
+            ) : loading ? (
+              <AnalysisLoading productId="naming_premium" label="师父正在为您的宝宝甄选佳名…" />
+            ) : error ? (
+              <div className="p-6 rounded-xl border border-red-500/30 bg-red-950/20 text-center">
+                <p className="text-red-300 text-sm mb-4">{error}</p>
+                <button
+                  type="button"
+                  onClick={() => run(false)}
+                  className="px-6 py-2 rounded-full bg-amber-700/50 text-amber-100 text-sm"
+                >
+                  重新生成
+                </button>
+              </div>
+            ) : null}
+          </ResultSection>
         )}
       </div>
     </div>

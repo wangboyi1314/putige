@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { calculateBaZi, type BaZiChart, type CalendarType } from "@/lib/bazi";
 import { Interpretation } from "@/components/Interpretation";
 import { Paywall } from "@/components/Paywall";
@@ -37,7 +37,7 @@ export default function BaziPage() {
   const [loading, setLoading] = useState(false);
   const [resultVersion, setResultVersion] = useState(0);
 
-  async function run(isPremium: boolean) {
+  async function run(isPremium: boolean, paidOrderId?: string) {
     const { year, month, day, hour, isLeapMonth } = birth;
     const result = calculateBaZi({
       year,
@@ -58,26 +58,26 @@ export default function BaziPage() {
       const res = await fetch("/api/interpret", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "bazi", question, isPremium, masterId, data: { ...result, gender } }),
+        body: JSON.stringify({
+          type: "bazi",
+          question,
+          isPremium,
+          orderId: paidOrderId,
+          masterId,
+          data: { ...result, gender },
+        }),
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "解读失败");
       if (isPremium) setPremiumInterpretation(data.interpretation || "");
       else setInterpretation(data.interpretation || "");
+    } catch (e) {
+      if (!isPremium) setInterpretation("");
+      console.error(e);
     } finally {
       setLoading(false);
     }
   }
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !chart || !interpretation || loading) return;
-    if (
-      localStorage.getItem("bodhi_paid_bazi_premium") === "1" &&
-      !premiumInterpretation
-    ) {
-      void run(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chart, interpretation, loading, premiumInterpretation]);
 
   const wuXingColors: Record<string, string> = { 金: "text-yellow-300", 木: "text-green-400", 水: "text-blue-400", 火: "text-red-400", 土: "text-amber-600" };
 
@@ -185,17 +185,8 @@ export default function BaziPage() {
             {interpretation ? (
               <Paywall
                 productId="bazi_premium"
-                onUnlock={() => run(true)}
-                preview={
-                  <div className="relative">
-                    <Interpretation content={interpretation} />
-                    {loading && (
-                      <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-[#1a1208]/75 backdrop-blur-[1px]">
-                        <p className="text-amber-200 text-sm px-4 text-center">正在更新解读，请稍候…</p>
-                      </div>
-                    )}
-                  </div>
-                }
+                previewContent={interpretation}
+                onUnlock={(orderId) => run(true, orderId)}
               >
                 <Interpretation content={premiumInterpretation} loading={loading} />
               </Paywall>

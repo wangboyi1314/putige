@@ -1,0 +1,1168 @@
+------formdata-undici-043422499989
+Content-Disposition: form-data; name="metadata"
+
+{"main_module":"functionsWorker-0.1870334318752923.js"}
+------formdata-undici-043422499989
+Content-Disposition: form-data; name="functionsWorker-0.1870334318752923.js"; filename="functionsWorker-0.1870334318752923.js"
+Content-Type: application/javascript+module
+
+var __defProp = Object.defineProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+
+// functions/api/payment/alipay/notify.ts
+var onRequestPost = /* @__PURE__ */ __name(async () => {
+  return new Response("not configured", { status: 501 });
+}, "onRequestPost");
+
+// functions/api/payment/wechat/notify.ts
+var onRequestPost2 = /* @__PURE__ */ __name(async () => {
+  return new Response("not configured", { status: 501 });
+}, "onRequestPost");
+
+// functions/_lib/runtime-env.ts
+function envGet(key, env) {
+  const fromBinding = env?.[key];
+  if (fromBinding !== void 0 && fromBinding !== "") return fromBinding;
+  return process.env[key];
+}
+__name(envGet, "envGet");
+
+// functions/_lib/payment.ts
+var PRODUCTS = {
+  gua_premium: {
+    id: "gua_premium",
+    name: "\u5468\u6613\u5366\u8C61\u8BE6\u6279",
+    description: "\u672C\u5366\xB7\u4E92\u5366\xB7\u53D8\u5366\u6DF1\u5EA6\u89E3\u8BFB\uFF0C\u5F15\u7ECF\u636E\u5178",
+    price: 8.8,
+    currency: "CNY"
+  },
+  qian_premium: {
+    id: "qian_premium",
+    name: "\u7075\u7B7E\u8BE6\u6279",
+    description: "\u7B7E\u8BD7\u9010\u53E5\u91CA\u4E49\uFF0C\u9488\u5BF9\u60A8\u7684\u95EE\u9898\u6DF1\u5EA6\u5206\u6790",
+    price: 6.6,
+    currency: "CNY"
+  },
+  bazi_premium: {
+    id: "bazi_premium",
+    name: "\u516B\u5B57\u7CBE\u6279",
+    description: "\u56DB\u67F1\u683C\u5C40\u3001\u4E94\u884C\u559C\u5FCC\u3001\u6D41\u5E74\u8FD0\u52BF\u5B8C\u6574\u89E3\u8BFB",
+    price: 18.8,
+    currency: "CNY"
+  },
+  dream_premium: {
+    id: "dream_premium",
+    name: "\u68A6\u5883\u8BE6\u6279",
+    description: "\u5468\u516C\u89E3\u68A6\u6DF1\u5EA6\u5206\u6790\uFF0C\u7ED3\u5408\u5FC3\u5883\u89E3\u8BFB",
+    price: 6.6,
+    currency: "CNY"
+  },
+  xiang_premium: {
+    id: "xiang_premium",
+    name: "\u638C\u7EB9\u9762\u76F8\u8BE6\u6279",
+    description: "\u5B8C\u6574\u76F8\u5B66\u5206\u6790\uFF0C\u9010\u90E8\u4F4D\u8BE6\u89E3",
+    price: 18.8,
+    currency: "CNY"
+  },
+  naming_premium: {
+    id: "naming_premium",
+    name: "\u53D6\u540D\u5B8C\u6574\u65B9\u6848",
+    description: "\u591A\u4E2A\u5019\u9009\u540D\u5B57\u3001\u5BD3\u610F\u3001\u97F3\u97F5\u4E0E\u516B\u5B57\u559C\u5FCC\u8BE6\u89E3",
+    price: 15.9,
+    currency: "CNY"
+  },
+  vip_monthly: {
+    id: "vip_monthly",
+    name: "\u6708\u5EA6\u4F1A\u5458",
+    description: "\u5168\u90E8\u529F\u80FD\u65E0\u9650\u6B21\u8BE6\u6279\uFF0C\u5C0A\u4EAB\u4F1A\u5458\u4EF7",
+    price: 49.9,
+    currency: "CNY"
+  }
+};
+function paymentMode(runtimeEnv) {
+  const fromEnv = envGet("PAYMENT_MODE", runtimeEnv);
+  const baseUrl = envGet("NEXT_PUBLIC_BASE_URL", runtimeEnv) || "";
+  const isPutigeProd = baseUrl.includes("putige-eh2.pages.dev") || baseUrl.includes("putige.pages.dev");
+  if (isPutigeProd && (!fromEnv || fromEnv === "demo")) {
+    return "xunhu";
+  }
+  return fromEnv;
+}
+__name(paymentMode, "paymentMode");
+function isDemoMode(runtimeEnv) {
+  if (paymentMode(runtimeEnv) !== "demo") return false;
+  const appSecret = envGet("XUNHU_APP_SECRET", runtimeEnv);
+  const appId = envGet("XUNHU_APP_ID", runtimeEnv) || "20211120137";
+  return !(appId && appSecret);
+}
+__name(isDemoMode, "isDemoMode");
+function isQrPaymentMode(runtimeEnv) {
+  return paymentMode(runtimeEnv) === "qr";
+}
+__name(isQrPaymentMode, "isQrPaymentMode");
+function isXunhuMode(runtimeEnv) {
+  const mode = paymentMode(runtimeEnv);
+  if (mode === "xunhu" || mode === "aggregator") return true;
+  const appSecret = envGet("XUNHU_APP_SECRET", runtimeEnv);
+  const appId = envGet("XUNHU_APP_ID", runtimeEnv) || "20211120137";
+  return !!(appId && appSecret);
+}
+__name(isXunhuMode, "isXunhuMode");
+
+// functions/_lib/orders-store.ts
+var ordersMem = /* @__PURE__ */ new Map();
+var tradeIndexMem = /* @__PURE__ */ new Map();
+var TTL_SECONDS = 86400 * 7;
+async function kvGet(env, key) {
+  if (!env.ORDERS) return null;
+  return env.ORDERS.get(key);
+}
+__name(kvGet, "kvGet");
+async function kvPut(env, key, value) {
+  if (!env.ORDERS) return;
+  await env.ORDERS.put(key, value, { expirationTtl: TTL_SECONDS });
+}
+__name(kvPut, "kvPut");
+async function storeOrder(env, order) {
+  ordersMem.set(order.id, order);
+  await kvPut(env, `order:${order.id}`, JSON.stringify(order));
+}
+__name(storeOrder, "storeOrder");
+async function createOrderAsync(env, productId) {
+  const product = PRODUCTS[productId];
+  const order = {
+    id: `ORD_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    productId,
+    amount: product.price,
+    status: "pending",
+    createdAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  await storeOrder(env, order);
+  return order;
+}
+__name(createOrderAsync, "createOrderAsync");
+async function getOrderAsync(env, orderId) {
+  const mem = ordersMem.get(orderId);
+  if (mem) return mem;
+  const raw = await kvGet(env, `order:${orderId}`);
+  if (!raw) return void 0;
+  const order = JSON.parse(raw);
+  ordersMem.set(orderId, order);
+  return order;
+}
+__name(getOrderAsync, "getOrderAsync");
+async function registerTradeOrderIdAsync(env, tradeOrderId, orderId) {
+  tradeIndexMem.set(tradeOrderId, orderId);
+  await kvPut(env, `trade:${tradeOrderId}`, orderId);
+}
+__name(registerTradeOrderIdAsync, "registerTradeOrderIdAsync");
+async function resolveOrderIdAsync(env, tradeOrOrderId) {
+  const mem = tradeIndexMem.get(tradeOrOrderId);
+  if (mem) return mem;
+  const fromKv = await kvGet(env, `trade:${tradeOrOrderId}`);
+  if (fromKv) {
+    tradeIndexMem.set(tradeOrOrderId, fromKv);
+    return fromKv;
+  }
+  return tradeOrOrderId;
+}
+__name(resolveOrderIdAsync, "resolveOrderIdAsync");
+async function markOrderPaidAsync(env, orderId, sessionId) {
+  let order = await getOrderAsync(env, orderId);
+  if (!order) {
+    order = {
+      id: orderId,
+      productId: "gua_premium",
+      amount: 0,
+      status: "paid",
+      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+      paidAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  } else {
+    order = {
+      ...order,
+      status: "paid",
+      paidAt: (/* @__PURE__ */ new Date()).toISOString(),
+      ...sessionId ? { sessionId } : {}
+    };
+  }
+  await storeOrder(env, order);
+  return order;
+}
+__name(markOrderPaidAsync, "markOrderPaidAsync");
+
+// functions/_lib/xunhupay.ts
+import crypto from "node:crypto";
+var DEFAULT_GATEWAY = "https://api.xunhupay.com/payment/do.html";
+function xunhuHash(data, appSecret) {
+  const keys = Object.keys(data).filter((k) => {
+    if (k === "hash") return false;
+    const v = data[k];
+    return v !== null && v !== void 0 && v !== "";
+  }).sort();
+  const stringA = keys.map((k) => `${k}=${data[k]}`).join("&");
+  return crypto.createHash("md5").update(stringA + appSecret).digest("hex");
+}
+__name(xunhuHash, "xunhuHash");
+function randomNonce(length = 16) {
+  return crypto.randomBytes(length).toString("hex").slice(0, length);
+}
+__name(randomNonce, "randomNonce");
+function sanitizeTradeOrderId(orderId) {
+  const cleaned = orderId.replace(/[^a-zA-Z0-9_*-]/g, "_");
+  return cleaned.slice(0, 32);
+}
+__name(sanitizeTradeOrderId, "sanitizeTradeOrderId");
+function getXunhuWechatChannel(env) {
+  const appId = envGet("XUNHU_APP_ID", env) || "20211120137";
+  const appSecret = envGet("XUNHU_APP_SECRET", env);
+  if (!appSecret) return null;
+  return { appId, appSecret, label: "\u5FAE\u4FE1" };
+}
+__name(getXunhuWechatChannel, "getXunhuWechatChannel");
+function getXunhuAlipayChannel(env) {
+  const appId = envGet("XUNHU_ALIPAY_APP_ID", env) || envGet("XUNHU_APP_ID", env);
+  const appSecret = envGet("XUNHU_ALIPAY_APP_SECRET", env) || envGet("XUNHU_APP_SECRET", env);
+  if (!appId || !appSecret) return null;
+  if (!envGet("XUNHU_ALIPAY_APP_ID", env)) return null;
+  return { appId, appSecret, label: "\u652F\u4ED8\u5B9D" };
+}
+__name(getXunhuAlipayChannel, "getXunhuAlipayChannel");
+function isXunhuConfigured(env) {
+  return !!getXunhuWechatChannel(env);
+}
+__name(isXunhuConfigured, "isXunhuConfigured");
+async function createXunhuPayment(params, env) {
+  const gateway = envGet("XUNHU_API_URL", env) || DEFAULT_GATEWAY;
+  const tradeOrderId = sanitizeTradeOrderId(params.orderId);
+  const payload = {
+    version: "1.1",
+    appid: params.channel.appId,
+    trade_order_id: tradeOrderId,
+    total_fee: params.amountYuan,
+    title: params.title.replace(/%/g, "").slice(0, 42),
+    time: Math.floor(Date.now() / 1e3),
+    notify_url: params.notifyUrl,
+    nonce_str: randomNonce(16),
+    plugins: "bodhi"
+  };
+  if (params.returnUrl) {
+    payload.return_url = params.returnUrl;
+  }
+  payload.hash = xunhuHash(payload, params.channel.appSecret);
+  const res = await fetch(gateway, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(
+      Object.fromEntries(Object.entries(payload).map(([k, v]) => [k, String(v)]))
+    )
+  });
+  const data = await res.json();
+  if (data.errcode !== 0 || !data.url) {
+    throw new Error(data.errmsg || "\u864E\u76AE\u6912\u4E0B\u5355\u5931\u8D25");
+  }
+  if (data.hash) {
+    const { hash, ...rest } = data;
+    const expected = xunhuHash(
+      rest,
+      params.channel.appSecret
+    );
+    if (hash !== expected) {
+      console.warn("[xunhupay] \u54CD\u5E94\u7B7E\u540D\u6821\u9A8C\u672A\u901A\u8FC7");
+    }
+  }
+  return {
+    url: data.url,
+    urlQrcode: data.url_qrcode || data.url,
+    openOrderId: data.openid
+  };
+}
+__name(createXunhuPayment, "createXunhuPayment");
+function verifyXunhuNotify(params, appSecret) {
+  const { hash, ...rest } = params;
+  const expected = xunhuHash(rest, appSecret);
+  const valid = hash === expected;
+  const orderId = params.trade_order_id || "";
+  const paid = params.status === "OD";
+  const amount = parseFloat(params.total_fee || "0");
+  return { valid, orderId, paid, amount };
+}
+__name(verifyXunhuNotify, "verifyXunhuNotify");
+function resolveXunhuSecretByAppId(appid, env) {
+  if (appid === envGet("XUNHU_ALIPAY_APP_ID", env) && envGet("XUNHU_ALIPAY_APP_SECRET", env)) {
+    return envGet("XUNHU_ALIPAY_APP_SECRET", env) || null;
+  }
+  if (appid === envGet("XUNHU_APP_ID", env) && envGet("XUNHU_APP_SECRET", env)) {
+    return envGet("XUNHU_APP_SECRET", env) || null;
+  }
+  return envGet("XUNHU_APP_SECRET", env) || null;
+}
+__name(resolveXunhuSecretByAppId, "resolveXunhuSecretByAppId");
+
+// functions/_lib/http.ts
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Access-Control-Allow-Origin": "*"
+    }
+  });
+}
+__name(json, "json");
+function envFrom(context) {
+  return context.env;
+}
+__name(envFrom, "envFrom");
+
+// functions/api/payment/xunhu/notify.ts
+var onRequestPost3 = /* @__PURE__ */ __name(async (context) => {
+  try {
+    const env = envFrom(context);
+    const form = await context.request.formData();
+    const params = {};
+    form.forEach((v, k) => {
+      params[k] = String(v);
+    });
+    const appid = params.appid || "";
+    const secret = resolveXunhuSecretByAppId(appid, env);
+    if (!secret) {
+      console.error("[xunhu notify] \u672A\u77E5 appid:", appid);
+      return new Response("fail", { status: 400 });
+    }
+    const { valid, orderId: tradeOrderId, paid, amount } = verifyXunhuNotify(
+      params,
+      secret
+    );
+    if (!valid) {
+      console.error("[xunhu notify] \u7B7E\u540D\u6821\u9A8C\u5931\u8D25");
+      return new Response("fail", { status: 400 });
+    }
+    if (!paid) {
+      return new Response("success");
+    }
+    const orderId = await resolveOrderIdAsync(env, tradeOrderId);
+    const order = await getOrderAsync(env, orderId);
+    if (order && order.status !== "paid") {
+      if (Math.abs(order.amount - amount) > 0.01) {
+        console.error("[xunhu notify] \u91D1\u989D\u4E0D\u7B26", order.amount, amount);
+        return new Response("fail", { status: 400 });
+      }
+      await markOrderPaidAsync(env, orderId);
+    } else if (!order) {
+      await markOrderPaidAsync(env, orderId);
+    }
+    return new Response("success", {
+      headers: { "Content-Type": "text/plain; charset=utf-8" }
+    });
+  } catch (e) {
+    console.error("[xunhu notify]", e);
+    return new Response("fail", { status: 500 });
+  }
+}, "onRequestPost");
+
+// functions/api/payment/confirm.ts
+var onRequestPost4 = /* @__PURE__ */ __name(async (context) => {
+  try {
+    const env = envFrom(context);
+    const { orderId } = await context.request.json();
+    if (!orderId) {
+      return json({ error: "\u7F3A\u5C11\u8BA2\u5355\u53F7" }, 400);
+    }
+    const order = await getOrderAsync(env, orderId);
+    if (!order) {
+      return json({ error: "\u8BA2\u5355\u4E0D\u5B58\u5728" }, 404);
+    }
+    const sessionId = `session_${orderId}`;
+    const paid = await markOrderPaidAsync(env, orderId, sessionId);
+    return json({ success: true, sessionId, order: paid });
+  } catch (e) {
+    console.error("Payment confirm error:", e);
+    return json({ error: "\u786E\u8BA4\u652F\u4ED8\u5931\u8D25" }, 500);
+  }
+}, "onRequestPost");
+
+// functions/api/payment/create.ts
+var onRequestPost5 = /* @__PURE__ */ __name(async (context) => {
+  try {
+    const env = envFrom(context);
+    const body = await context.request.json();
+    const { productId, payChannel = "wechat" } = body;
+    if (!productId || !PRODUCTS[productId]) {
+      return json({ error: "\u65E0\u6548\u7684\u5546\u54C1" }, 400);
+    }
+    const order = await createOrderAsync(env, productId);
+    const product = PRODUCTS[productId];
+    const baseUrl = envGet("NEXT_PUBLIC_BASE_URL", env)?.replace(/\/$/, "");
+    if (isDemoMode(env)) {
+      return json({
+        orderId: order.id,
+        amount: order.amount,
+        demoMode: true,
+        message: "\u6F14\u793A\u6A21\u5F0F\uFF1A\u70B9\u51FB\u786E\u8BA4\u5373\u53EF\u5B8C\u6210\u652F\u4ED8"
+      });
+    }
+    if (isXunhuMode(env)) {
+      if (!isXunhuConfigured(env)) {
+        return json(
+          {
+            error: "\u864E\u76AE\u6912\u672A\u914D\u7F6E\uFF1A\u8BF7\u5728\u73AF\u5883\u53D8\u91CF\u4E2D\u8BBE\u7F6E XUNHU_APP_ID \u548C XUNHU_APP_SECRET\uFF0C\u8BE6\u89C1 DEPLOY.md"
+          },
+          503
+        );
+      }
+      if (!baseUrl) {
+        return json({ error: "\u7F3A\u5C11 NEXT_PUBLIC_BASE_URL" }, 500);
+      }
+      const channel = payChannel === "alipay" ? getXunhuAlipayChannel(env) : getXunhuWechatChannel(env);
+      const active = channel ?? getXunhuWechatChannel(env);
+      const xunhu = await createXunhuPayment(
+        {
+          orderId: order.id,
+          amountYuan: order.amount,
+          title: product.name,
+          notifyUrl: `${baseUrl}/api/payment/xunhu/notify`,
+          returnUrl: `${baseUrl}/mine?paid=1&order=${encodeURIComponent(order.id)}&product=${encodeURIComponent(productId)}`,
+          channel: active
+        },
+        env
+      );
+      const tradeId = sanitizeTradeOrderId(order.id);
+      await registerTradeOrderIdAsync(env, tradeId, order.id);
+      return json({
+        orderId: order.id,
+        amount: order.amount,
+        xunhuMode: true,
+        payChannel,
+        payUrl: xunhu.url,
+        qrUrl: xunhu.urlQrcode,
+        pollUrl: `/api/payment/status?orderId=${order.id}`
+      });
+    }
+    if (isQrPaymentMode(env)) {
+      return json({
+        orderId: order.id,
+        amount: order.amount,
+        demoMode: false,
+        qrMode: true,
+        message: "\u8BF7\u626B\u7801\u652F\u4ED8\u540E\u70B9\u51FB\u786E\u8BA4"
+      });
+    }
+    return json(
+      { error: "\u672A\u77E5\u652F\u4ED8\u6A21\u5F0F\uFF0C\u8BF7\u8BBE\u7F6E PAYMENT_MODE=demo|qr|xunhu|merchant" },
+      400
+    );
+  } catch (e) {
+    console.error("Payment create error:", e);
+    return json({ error: e instanceof Error ? e.message : "\u521B\u5EFA\u8BA2\u5355\u5931\u8D25" }, 500);
+  }
+}, "onRequestPost");
+
+// functions/api/payment/status.ts
+var onRequestGet = /* @__PURE__ */ __name(async (context) => {
+  const env = envFrom(context);
+  const orderId = new URL(context.request.url).searchParams.get("orderId");
+  if (!orderId) {
+    return json({ error: "\u7F3A\u5C11 orderId" }, 400);
+  }
+  const order = await getOrderAsync(env, orderId);
+  if (!order) {
+    return json({ error: "\u8BA2\u5355\u4E0D\u5B58\u5728" }, 404);
+  }
+  return json({
+    orderId: order.id,
+    status: order.status,
+    paid: order.status === "paid",
+    amount: order.amount,
+    productId: order.productId
+  });
+}, "onRequestGet");
+
+// functions/api/health.ts
+var onRequestGet2 = /* @__PURE__ */ __name(async (context) => {
+  const env = envFrom(context);
+  return json({
+    ok: true,
+    paymentMode: envGet("PAYMENT_MODE", env),
+    xunhu: isXunhuMode(env),
+    demo: isDemoMode(env),
+    hasXunhuSecret: !!envGet("XUNHU_APP_SECRET", env),
+    baseUrl: envGet("NEXT_PUBLIC_BASE_URL", env)
+  });
+}, "onRequestGet");
+
+// functions/_lib/masters.ts
+var MASTERS = [
+  {
+    id: "huiming",
+    name: "\u6167\u660E\u957F\u8001",
+    title: "\u53E4\u5BFA\u4F4F\u6301",
+    style: "\u5E84\u91CD\u6301\u91CD\uFF0C\u5F15\u7ECF\u636E\u5178",
+    description: "\u901A\u8BFB\u300A\u6E0A\u6D77\u5B50\u5E73\u300B\u300A\u6EF4\u5929\u9AD3\u300B\uFF0C\u8A00\u8BED\u7A33\u91CD\u514B\u5236\u3002\u9002\u5408\u5E0C\u671B\u6DF1\u5EA6\u89E3\u8BFB\u3001\u770B\u53E4\u7C4D\u51FA\u5904\u7684\u65BD\u4E3B\u3002"
+  },
+  {
+    id: "mingxin",
+    name: "\u660E\u5FC3\u5E08\u7236",
+    title: "\u5C3C\u4F17\u6CD5\u5E08",
+    style: "\u6148\u60B2\u6E29\u67D4\uFF0C\u529D\u4EBA\u5411\u5584",
+    description: "\u8BED\u8C03\u6E29\u548C\uFF0C\u6148\u60B2\u4E3A\u6000\u3002\u9002\u5408\u5BB6\u5EAD\u3001\u611F\u60C5\u3001\u4EB2\u4EBA\u7948\u798F\u573A\u666F\u3002"
+  },
+  {
+    id: "xuanzhen",
+    name: "\u7384\u771F\u9053\u957F",
+    title: "\u5C71\u4E2D\u9053\u4EBA",
+    style: "\u76F4\u723D\u901A\u900F\uFF0C\u8BF4\u5927\u767D\u8BDD",
+    description: "\u5C71\u4E2D\u9053\u4EBA\uFF0C\u4E0D\u7231\u7ED5\u5F2F\u5B50\u3002\u628A\u547D\u7406\u8BB2\u6210\u5927\u767D\u8BDD\uFF0C\u9002\u5408\u6025\u6027\u5B50\u3002"
+  }
+];
+function getMaster(id) {
+  return MASTERS.find((m) => m.id === id) ?? MASTERS[0];
+}
+__name(getMaster, "getMaster");
+
+// functions/_lib/deepseek.ts
+var CLASSICAL_SYSTEM_PROMPT = `\u4F60\u662F\u4E00\u4F4D\u7CBE\u901A\u4E2D\u56FD\u4F20\u7EDF\u547D\u7406\u6587\u5316\u7684\u8D44\u6DF1\u89E3\u8BFB\u5E08\uFF0C\u5B66\u8BC6\u6E0A\u535A\uFF0C\u719F\u8BFB\u4EE5\u4E0B\u7ECF\u5178\uFF1A
+\u300A\u5468\u6613\u300B\u300A\u5468\u6613\u6B63\u4E49\u300B\u300A\u5468\u6613\u672C\u4E49\u300B\u300A\u5468\u6613\u5C1A\u6C0F\u5B66\u300B
+\u300A\u6E0A\u6D77\u5B50\u5E73\u300B\u300A\u6EF4\u5929\u9AD3\u300B\u300A\u5B50\u5E73\u771F\u8BE0\u300B\u300A\u7A77\u901A\u5B9D\u9274\u300B\u300A\u4E09\u547D\u901A\u4F1A\u300B
+\u300A\u5468\u516C\u89E3\u68A6\u300B\u300A\u68A6\u6797\u7384\u89E3\u300B\u300A\u6566\u714C\u672C\u68A6\u4E66\u300B
+\u300A\u534F\u7EAA\u8FA8\u65B9\u4E66\u300B\u300A\u901A\u80DC\u300B\u300A\u7389\u5323\u8BB0\u300B
+
+\u89E3\u8BFB\u8981\u6C42\uFF1A
+1. \u4EE5\u53E4\u7C4D\u7ECF\u5178\u4E3A\u636E\uFF0C\u5F15\u7528\u7ECF\u5178\u539F\u6587\u6216\u8981\u4E49\uFF0C\u6807\u6CE8\u51FA\u5904
+2. \u8BED\u8A00\u5178\u96C5\u800C\u4E0D\u6666\u6DA9\uFF0C\u5982\u771F\u4EBA\u9762\u5BF9\u9762\u89E3\u8BFB\uFF0C\u6709\u6E29\u5EA6\u6709\u5206\u5BF8
+3. \u7ED3\u5408\u95EE\u535C\u8005\u6240\u95EE\u4E4B\u4E8B\u5177\u4F53\u5206\u6790\uFF0C\u4E0D\u53EF\u5957\u7528\u6A21\u677F
+4. \u7ED9\u51FA\u660E\u786E\u7684\u8D8B\u52BF\u5224\u65AD\u4E0E\u53EF\u884C\u5EFA\u8BAE
+5. \u672B\u5C3E\u6CE8\u660E\uFF1A\u300C\u4EE5\u4E0A\u89E3\u8BFB\u4EC5\u4F9B\u4F20\u7EDF\u6587\u5316\u53C2\u8003\uFF0C\u4E0D\u66FF\u4EE3\u533B\u7597\u3001\u6CD5\u5F8B\u3001\u6295\u8D44\u5EFA\u8BAE\u3002\u300D
+6. \u4F7F\u7528 Markdown \u683C\u5F0F\uFF0C\u5C42\u6B21\u5206\u660E`;
+var TYPE_PROMPTS = {
+  gua: `\u4F60\u6B63\u5728\u89E3\u8BFB\u5468\u6613\u5366\u8C61\u3002\u8BF7\u56F4\u7ED5\u672C\u5366\u3001\u4E92\u5366\u3001\u53D8\u5366\u5C55\u5F00\uFF1A
+- \u5366\u8F9E\u3001\u5F56\u8F9E\u3001\u8C61\u8F9E\u8981\u4E49
+- \u53D8\u723B\u542B\u4E49\u4E0E\u52A8\u53D8\u4E4B\u7406
+- \u9488\u5BF9\u95EE\u535C\u8005\u6240\u95EE\u4E4B\u4E8B\u7684\u5409\u51F6\u8D8B\u52BF
+- \u884C\u4E8B\u5EFA\u8BAE\u4E0E\u65F6\u673A\u628A\u63E1`,
+  qian: `\u4F60\u6B63\u5728\u89E3\u8BFB\u7075\u7B7E\u3002\u8BF7\u56F4\u7ED5\u7B7E\u8BD7\u5C55\u5F00\uFF1A
+- \u7B7E\u8BD7\u9010\u53E5\u91CA\u4E49
+- \u5178\u6545\u5BD3\u610F
+- \u9488\u5BF9\u5F53\u524D\u4E8B\u9879\u7684\u5409\u51F6\u5224\u65AD
+- \u5177\u4F53\u53EF\u884C\u7684\u5EFA\u8BAE`,
+  bazi: `\u4F60\u6B63\u5728\u89E3\u8BFB\u516B\u5B57\u547D\u76D8\u3002\u8BF7\u56F4\u7ED5\u56DB\u67F1\u516B\u5B57\u5C55\u5F00\uFF1A
+- \u65E5\u4E3B\u5F3A\u5F31\u4E0E\u683C\u5C40
+- \u4E94\u884C\u559C\u5FCC
+- \u6027\u683C\u7279\u8D28\u4E0E\u4EBA\u751F\u5927\u52BF
+- \u8FD1\u5E74\u6D41\u5E74\u8FD0\u52BF\u8981\u70B9
+- \u9488\u5BF9\u95EE\u535C\u8005\u6240\u5173\u5FC3\u4E8B\u9879\u7684\u5206\u6790`,
+  dream: `\u4F60\u6B63\u5728\u89E3\u8BFB\u68A6\u5883\u3002\u8BF7\u7ED3\u5408\u5468\u516C\u89E3\u68A6\u4F20\u7EDF\uFF1A
+- \u68A6\u4E2D\u610F\u8C61\u7684\u4F20\u7EDF\u91CA\u4E49
+- \u5F15\u8FF0\u76F8\u5173\u53E4\u7C4D\u8BB0\u8F7D
+- \u7ED3\u5408\u68A6\u8005\u8FD1\u671F\u5FC3\u5883\u5206\u6790
+- \u5409\u51F6\u8D8B\u52BF\u4E0E\u5EFA\u8BAE`,
+  huangli: `\u4F60\u6B63\u5728\u89E3\u8BFB\u9EC4\u5386\u62E9\u65E5\u3002\u8BF7\u56F4\u7ED5\u5F53\u65E5\u5E72\u652F\u5B9C\u5FCC\uFF1A
+- \u4ECA\u65E5\u6C14\u573A\u7279\u70B9
+- \u5B9C\u505A\u4E0E\u5FCC\u505A\u4E4B\u4E8B\u7684\u6587\u5316\u91CA\u4E49
+- \u9488\u5BF9\u95EE\u535C\u8005\u8BA1\u5212\u7684\u62E9\u65E5\u5EFA\u8BAE`,
+  xiang: `\u4F60\u6B63\u5728\u89E3\u8BFB\u624B\u76F8\u6216\u9762\u76F8\u3002\u8BF7\u56F4\u7ED5\u7167\u7247\u53EF\u89C1\u7279\u5F81\uFF1A
+- \u638C\u7EB9/\u4E94\u5B98\u7684\u4F20\u7EDF\u76F8\u5B66\u91CA\u4E49
+- \u6027\u60C5\u3001\u611F\u60C5\u3001\u4E8B\u4E1A\u3001\u8D22\u8FD0\u8981\u70B9
+- \u53EA\u5206\u6790\u53EF\u89C1\u90E8\u5206\uFF0C\u4E0D\u53EF\u89C1\u5904\u4E0D\u8981\u7F16\u9020`,
+  naming: `\u4F60\u6B63\u5728\u4E3A\u65B0\u751F\u513F\u53D6\u540D\u6216\u6D4B\u8BC4\u59D3\u540D\u3002\u8BF7\uFF1A
+- \u7ED3\u5408\u516B\u5B57\u559C\u5FCC\u4E0E\u4E94\u884C\u8865\u76CA
+- \u7ED9\u51FA\u591A\u4E2A\u5019\u9009\u540D\u5B57\u53CA\u5BD3\u610F\u3001\u97F3\u97F5\u5206\u6790
+- \u5F15\u8FF0\u5178\u6545\u8BD7\u8BCD\u51FA\u5904`
+};
+function buildPrompt(req) {
+  const typePrompt = TYPE_PROMPTS[req.type];
+  const master = getMaster(req.masterId || "huiming");
+  const premiumNote = req.isPremium ? "\u8BF7\u63D0\u4F9B\u5B8C\u6574\u8BE6\u5C3D\u7684\u6DF1\u5EA6\u89E3\u8BFB\uFF0C\u4E0D\u5C11\u4E8E800\u5B57\uFF0C\u6DB5\u76D6\u5404\u65B9\u9762\u5206\u6790\u3002" : "\u8BF7\u63D0\u4F9B\u7B80\u6D01\u6982\u8981\u89E3\u8BFB\uFF0C\u7EA6200\u5B57\uFF0C\u672B\u5C3E\u63D0\u793A\u300C\u89E3\u9501\u5B8C\u6574\u8BE6\u6279\u53EF\u83B7\u66F4\u6DF1\u89E3\u8BFB\u300D\u3002";
+  const masterNote = `\u4F60\u73B0\u5728\u4EE5\u300C${master.name}\u300D\uFF08${master.title}\uFF09\u7684\u8EAB\u4EFD\u89E3\u8BFB\uFF0C\u98CE\u683C\uFF1A${master.style}\u3002${master.description}`;
+  const system = `${CLASSICAL_SYSTEM_PROMPT}
+
+${masterNote}
+
+${typePrompt}
+
+${premiumNote}`;
+  const user = `\u95EE\u535C\u8005\u95EE\u9898\uFF1A${req.question || "\u7EFC\u5408\u8FD0\u52BF"}
+
+\u5366\u8C61/\u7B7E\u6587/\u547D\u76D8/\u68A6\u5883\u6570\u636E\uFF1A
+${JSON.stringify(req.data, null, 2)}`;
+  return { system, user };
+}
+__name(buildPrompt, "buildPrompt");
+async function callDeepSeek(system, user, runtimeEnv) {
+  const apiKey = envGet("DEEPSEEK_API_KEY", runtimeEnv);
+  if (!apiKey) {
+    return generateFallbackInterpretation(user);
+  }
+  const baseUrl = envGet("DEEPSEEK_BASE_URL", runtimeEnv) || "https://api.deepseek.com";
+  const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: envGet("DEEPSEEK_MODEL", runtimeEnv) || "deepseek-chat",
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user }
+      ],
+      temperature: 0.7,
+      max_tokens: 2e3
+    })
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    console.error("DeepSeek API error:", err);
+    return generateFallbackInterpretation(user);
+  }
+  const json2 = await res.json();
+  return json2.choices?.[0]?.message?.content ?? generateFallbackInterpretation(user);
+}
+__name(callDeepSeek, "callDeepSeek");
+function generateFallbackInterpretation(userContent) {
+  return `## \u4F20\u7EDF\u6587\u5316\u53C2\u8003\u89E3\u8BFB
+
+\u6839\u636E\u60A8\u63D0\u4F9B\u7684\u4FE1\u606F\uFF0C\u7ED3\u5408\u7ECF\u5178\u8981\u4E49\uFF1A
+
+**\u5366\u8C61/\u7B7E\u6587\u8981\u4E49**\uFF1A\u5929\u5730\u4E4B\u9053\uFF0C\u9634\u9633\u76F8\u6D4E\u3002\u5F53\u524D\u5F62\u52BF\u5B9C\u9759\u89C2\u5176\u53D8\uFF0C\u4E0D\u53EF\u8E81\u8FDB\u3002\u300A\u5468\u6613\u300B\u4E91\uFF1A"\u541B\u5B50\u4EE5\u539A\u5FB7\u8F7D\u7269"\uFF0C\u5F53\u4EE5\u8BDA\u5F85\u4EBA\uFF0C\u4EE5\u9759\u5236\u52A8\u3002
+
+**\u8D8B\u52BF\u5224\u65AD**\uFF1A\u8FD1\u671F\u8FD0\u52BF\u5E73\u7A33\u4E2D\u6709\u5C0F\u8FDB\uFF0C\u51E1\u4E8B\u9884\u5219\u7ACB\uFF0C\u4E0D\u9884\u5219\u5E9F\u3002\u5B9C\u5B88\u6B63\u9053\uFF0C\u5FCC\u8D70\u6377\u5F84\u3002
+
+**\u884C\u4E8B\u5EFA\u8BAE**\uFF1A
+- \u91CD\u8981\u51B3\u5B9A\u5B9C\u62E9\u5409\u65E5\u800C\u884C
+- \u4E0E\u4EBA\u76F8\u5904\u4EE5\u8BDA\u76F8\u5F85
+- \u4FEE\u8EAB\u517B\u6027\uFF0C\u539A\u79EF\u8584\u53D1
+
+> \u4EE5\u4E0A\u89E3\u8BFB\u4EC5\u4F9B\u4F20\u7EDF\u6587\u5316\u53C2\u8003\uFF0C\u4E0D\u66FF\u4EE3\u533B\u7597\u3001\u6CD5\u5F8B\u3001\u6295\u8D44\u5EFA\u8BAE\u3002
+
+*\uFF08\u63D0\u793A\uFF1A\u914D\u7F6E DEEPSEEK_API_KEY \u73AF\u5883\u53D8\u91CF\u540E\u53EF\u83B7\u5F97 AI \u6DF1\u5EA6\u89E3\u8BFB\uFF09*`;
+}
+__name(generateFallbackInterpretation, "generateFallbackInterpretation");
+
+// functions/api/interpret.ts
+var onRequestPost6 = /* @__PURE__ */ __name(async (context) => {
+  try {
+    const body = await context.request.json();
+    const { type, data, question, isPremium, masterId } = body;
+    if (!type || !data) {
+      return json({ error: "\u7F3A\u5C11\u5FC5\u8981\u53C2\u6570" }, 400);
+    }
+    const { system, user } = buildPrompt({ type, data, question, isPremium, masterId });
+    const interpretation = await callDeepSeek(system, user, context.env);
+    return json({ interpretation });
+  } catch (e) {
+    console.error("Interpret API error:", e);
+    return json({ error: "\u89E3\u8BFB\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5" }, 500);
+  }
+}, "onRequestPost");
+
+// ../.wrangler/tmp/pages-xstpAw/functionsRoutes-0.44007414563790226.mjs
+var routes = [
+  {
+    routePath: "/functions/api/payment/alipay/notify",
+    mountPath: "/functions/api/payment/alipay",
+    method: "POST",
+    middlewares: [],
+    modules: [onRequestPost]
+  },
+  {
+    routePath: "/functions/api/payment/wechat/notify",
+    mountPath: "/functions/api/payment/wechat",
+    method: "POST",
+    middlewares: [],
+    modules: [onRequestPost2]
+  },
+  {
+    routePath: "/functions/api/payment/xunhu/notify",
+    mountPath: "/functions/api/payment/xunhu",
+    method: "POST",
+    middlewares: [],
+    modules: [onRequestPost3]
+  },
+  {
+    routePath: "/functions/api/payment/confirm",
+    mountPath: "/functions/api/payment",
+    method: "POST",
+    middlewares: [],
+    modules: [onRequestPost4]
+  },
+  {
+    routePath: "/functions/api/payment/create",
+    mountPath: "/functions/api/payment",
+    method: "POST",
+    middlewares: [],
+    modules: [onRequestPost5]
+  },
+  {
+    routePath: "/functions/api/payment/status",
+    mountPath: "/functions/api/payment",
+    method: "GET",
+    middlewares: [],
+    modules: [onRequestGet]
+  },
+  {
+    routePath: "/functions/api/health",
+    mountPath: "/functions/api",
+    method: "GET",
+    middlewares: [],
+    modules: [onRequestGet2]
+  },
+  {
+    routePath: "/functions/api/interpret",
+    mountPath: "/functions/api",
+    method: "POST",
+    middlewares: [],
+    modules: [onRequestPost6]
+  }
+];
+
+// ../node_modules/path-to-regexp/dist.es2015/index.js
+function lexer(str) {
+  var tokens = [];
+  var i = 0;
+  while (i < str.length) {
+    var char = str[i];
+    if (char === "*" || char === "+" || char === "?") {
+      tokens.push({ type: "MODIFIER", index: i, value: str[i++] });
+      continue;
+    }
+    if (char === "\\") {
+      tokens.push({ type: "ESCAPED_CHAR", index: i++, value: str[i++] });
+      continue;
+    }
+    if (char === "{") {
+      tokens.push({ type: "OPEN", index: i, value: str[i++] });
+      continue;
+    }
+    if (char === "}") {
+      tokens.push({ type: "CLOSE", index: i, value: str[i++] });
+      continue;
+    }
+    if (char === ":") {
+      var name = "";
+      var j = i + 1;
+      while (j < str.length) {
+        var code = str.charCodeAt(j);
+        if (
+          // `0-9`
+          code >= 48 && code <= 57 || // `A-Z`
+          code >= 65 && code <= 90 || // `a-z`
+          code >= 97 && code <= 122 || // `_`
+          code === 95
+        ) {
+          name += str[j++];
+          continue;
+        }
+        break;
+      }
+      if (!name)
+        throw new TypeError("Missing parameter name at ".concat(i));
+      tokens.push({ type: "NAME", index: i, value: name });
+      i = j;
+      continue;
+    }
+    if (char === "(") {
+      var count = 1;
+      var pattern = "";
+      var j = i + 1;
+      if (str[j] === "?") {
+        throw new TypeError('Pattern cannot start with "?" at '.concat(j));
+      }
+      while (j < str.length) {
+        if (str[j] === "\\") {
+          pattern += str[j++] + str[j++];
+          continue;
+        }
+        if (str[j] === ")") {
+          count--;
+          if (count === 0) {
+            j++;
+            break;
+          }
+        } else if (str[j] === "(") {
+          count++;
+          if (str[j + 1] !== "?") {
+            throw new TypeError("Capturing groups are not allowed at ".concat(j));
+          }
+        }
+        pattern += str[j++];
+      }
+      if (count)
+        throw new TypeError("Unbalanced pattern at ".concat(i));
+      if (!pattern)
+        throw new TypeError("Missing pattern at ".concat(i));
+      tokens.push({ type: "PATTERN", index: i, value: pattern });
+      i = j;
+      continue;
+    }
+    tokens.push({ type: "CHAR", index: i, value: str[i++] });
+  }
+  tokens.push({ type: "END", index: i, value: "" });
+  return tokens;
+}
+__name(lexer, "lexer");
+function parse(str, options) {
+  if (options === void 0) {
+    options = {};
+  }
+  var tokens = lexer(str);
+  var _a = options.prefixes, prefixes = _a === void 0 ? "./" : _a, _b = options.delimiter, delimiter = _b === void 0 ? "/#?" : _b;
+  var result = [];
+  var key = 0;
+  var i = 0;
+  var path = "";
+  var tryConsume = /* @__PURE__ */ __name(function(type) {
+    if (i < tokens.length && tokens[i].type === type)
+      return tokens[i++].value;
+  }, "tryConsume");
+  var mustConsume = /* @__PURE__ */ __name(function(type) {
+    var value2 = tryConsume(type);
+    if (value2 !== void 0)
+      return value2;
+    var _a2 = tokens[i], nextType = _a2.type, index = _a2.index;
+    throw new TypeError("Unexpected ".concat(nextType, " at ").concat(index, ", expected ").concat(type));
+  }, "mustConsume");
+  var consumeText = /* @__PURE__ */ __name(function() {
+    var result2 = "";
+    var value2;
+    while (value2 = tryConsume("CHAR") || tryConsume("ESCAPED_CHAR")) {
+      result2 += value2;
+    }
+    return result2;
+  }, "consumeText");
+  var isSafe = /* @__PURE__ */ __name(function(value2) {
+    for (var _i = 0, delimiter_1 = delimiter; _i < delimiter_1.length; _i++) {
+      var char2 = delimiter_1[_i];
+      if (value2.indexOf(char2) > -1)
+        return true;
+    }
+    return false;
+  }, "isSafe");
+  var safePattern = /* @__PURE__ */ __name(function(prefix2) {
+    var prev = result[result.length - 1];
+    var prevText = prefix2 || (prev && typeof prev === "string" ? prev : "");
+    if (prev && !prevText) {
+      throw new TypeError('Must have text between two parameters, missing text after "'.concat(prev.name, '"'));
+    }
+    if (!prevText || isSafe(prevText))
+      return "[^".concat(escapeString(delimiter), "]+?");
+    return "(?:(?!".concat(escapeString(prevText), ")[^").concat(escapeString(delimiter), "])+?");
+  }, "safePattern");
+  while (i < tokens.length) {
+    var char = tryConsume("CHAR");
+    var name = tryConsume("NAME");
+    var pattern = tryConsume("PATTERN");
+    if (name || pattern) {
+      var prefix = char || "";
+      if (prefixes.indexOf(prefix) === -1) {
+        path += prefix;
+        prefix = "";
+      }
+      if (path) {
+        result.push(path);
+        path = "";
+      }
+      result.push({
+        name: name || key++,
+        prefix,
+        suffix: "",
+        pattern: pattern || safePattern(prefix),
+        modifier: tryConsume("MODIFIER") || ""
+      });
+      continue;
+    }
+    var value = char || tryConsume("ESCAPED_CHAR");
+    if (value) {
+      path += value;
+      continue;
+    }
+    if (path) {
+      result.push(path);
+      path = "";
+    }
+    var open = tryConsume("OPEN");
+    if (open) {
+      var prefix = consumeText();
+      var name_1 = tryConsume("NAME") || "";
+      var pattern_1 = tryConsume("PATTERN") || "";
+      var suffix = consumeText();
+      mustConsume("CLOSE");
+      result.push({
+        name: name_1 || (pattern_1 ? key++ : ""),
+        pattern: name_1 && !pattern_1 ? safePattern(prefix) : pattern_1,
+        prefix,
+        suffix,
+        modifier: tryConsume("MODIFIER") || ""
+      });
+      continue;
+    }
+    mustConsume("END");
+  }
+  return result;
+}
+__name(parse, "parse");
+function match(str, options) {
+  var keys = [];
+  var re = pathToRegexp(str, keys, options);
+  return regexpToFunction(re, keys, options);
+}
+__name(match, "match");
+function regexpToFunction(re, keys, options) {
+  if (options === void 0) {
+    options = {};
+  }
+  var _a = options.decode, decode = _a === void 0 ? function(x) {
+    return x;
+  } : _a;
+  return function(pathname) {
+    var m = re.exec(pathname);
+    if (!m)
+      return false;
+    var path = m[0], index = m.index;
+    var params = /* @__PURE__ */ Object.create(null);
+    var _loop_1 = /* @__PURE__ */ __name(function(i2) {
+      if (m[i2] === void 0)
+        return "continue";
+      var key = keys[i2 - 1];
+      if (key.modifier === "*" || key.modifier === "+") {
+        params[key.name] = m[i2].split(key.prefix + key.suffix).map(function(value) {
+          return decode(value, key);
+        });
+      } else {
+        params[key.name] = decode(m[i2], key);
+      }
+    }, "_loop_1");
+    for (var i = 1; i < m.length; i++) {
+      _loop_1(i);
+    }
+    return { path, index, params };
+  };
+}
+__name(regexpToFunction, "regexpToFunction");
+function escapeString(str) {
+  return str.replace(/([.+*?=^!:${}()[\]|/\\])/g, "\\$1");
+}
+__name(escapeString, "escapeString");
+function flags(options) {
+  return options && options.sensitive ? "" : "i";
+}
+__name(flags, "flags");
+function regexpToRegexp(path, keys) {
+  if (!keys)
+    return path;
+  var groupsRegex = /\((?:\?<(.*?)>)?(?!\?)/g;
+  var index = 0;
+  var execResult = groupsRegex.exec(path.source);
+  while (execResult) {
+    keys.push({
+      // Use parenthesized substring match if available, index otherwise
+      name: execResult[1] || index++,
+      prefix: "",
+      suffix: "",
+      modifier: "",
+      pattern: ""
+    });
+    execResult = groupsRegex.exec(path.source);
+  }
+  return path;
+}
+__name(regexpToRegexp, "regexpToRegexp");
+function arrayToRegexp(paths, keys, options) {
+  var parts = paths.map(function(path) {
+    return pathToRegexp(path, keys, options).source;
+  });
+  return new RegExp("(?:".concat(parts.join("|"), ")"), flags(options));
+}
+__name(arrayToRegexp, "arrayToRegexp");
+function stringToRegexp(path, keys, options) {
+  return tokensToRegexp(parse(path, options), keys, options);
+}
+__name(stringToRegexp, "stringToRegexp");
+function tokensToRegexp(tokens, keys, options) {
+  if (options === void 0) {
+    options = {};
+  }
+  var _a = options.strict, strict = _a === void 0 ? false : _a, _b = options.start, start = _b === void 0 ? true : _b, _c = options.end, end = _c === void 0 ? true : _c, _d = options.encode, encode = _d === void 0 ? function(x) {
+    return x;
+  } : _d, _e = options.delimiter, delimiter = _e === void 0 ? "/#?" : _e, _f = options.endsWith, endsWith = _f === void 0 ? "" : _f;
+  var endsWithRe = "[".concat(escapeString(endsWith), "]|$");
+  var delimiterRe = "[".concat(escapeString(delimiter), "]");
+  var route = start ? "^" : "";
+  for (var _i = 0, tokens_1 = tokens; _i < tokens_1.length; _i++) {
+    var token = tokens_1[_i];
+    if (typeof token === "string") {
+      route += escapeString(encode(token));
+    } else {
+      var prefix = escapeString(encode(token.prefix));
+      var suffix = escapeString(encode(token.suffix));
+      if (token.pattern) {
+        if (keys)
+          keys.push(token);
+        if (prefix || suffix) {
+          if (token.modifier === "+" || token.modifier === "*") {
+            var mod = token.modifier === "*" ? "?" : "";
+            route += "(?:".concat(prefix, "((?:").concat(token.pattern, ")(?:").concat(suffix).concat(prefix, "(?:").concat(token.pattern, "))*)").concat(suffix, ")").concat(mod);
+          } else {
+            route += "(?:".concat(prefix, "(").concat(token.pattern, ")").concat(suffix, ")").concat(token.modifier);
+          }
+        } else {
+          if (token.modifier === "+" || token.modifier === "*") {
+            throw new TypeError('Can not repeat "'.concat(token.name, '" without a prefix and suffix'));
+          }
+          route += "(".concat(token.pattern, ")").concat(token.modifier);
+        }
+      } else {
+        route += "(?:".concat(prefix).concat(suffix, ")").concat(token.modifier);
+      }
+    }
+  }
+  if (end) {
+    if (!strict)
+      route += "".concat(delimiterRe, "?");
+    route += !options.endsWith ? "$" : "(?=".concat(endsWithRe, ")");
+  } else {
+    var endToken = tokens[tokens.length - 1];
+    var isEndDelimited = typeof endToken === "string" ? delimiterRe.indexOf(endToken[endToken.length - 1]) > -1 : endToken === void 0;
+    if (!strict) {
+      route += "(?:".concat(delimiterRe, "(?=").concat(endsWithRe, "))?");
+    }
+    if (!isEndDelimited) {
+      route += "(?=".concat(delimiterRe, "|").concat(endsWithRe, ")");
+    }
+  }
+  return new RegExp(route, flags(options));
+}
+__name(tokensToRegexp, "tokensToRegexp");
+function pathToRegexp(path, keys, options) {
+  if (path instanceof RegExp)
+    return regexpToRegexp(path, keys);
+  if (Array.isArray(path))
+    return arrayToRegexp(path, keys, options);
+  return stringToRegexp(path, keys, options);
+}
+__name(pathToRegexp, "pathToRegexp");
+
+// ../node_modules/wrangler/templates/pages-template-worker.ts
+var escapeRegex = /[.+?^${}()|[\]\\]/g;
+function* executeRequest(request) {
+  const requestPath = new URL(request.url).pathname;
+  for (const route of [...routes].reverse()) {
+    if (route.method && route.method !== request.method) {
+      continue;
+    }
+    const routeMatcher = match(route.routePath.replace(escapeRegex, "\\$&"), {
+      end: false
+    });
+    const mountMatcher = match(route.mountPath.replace(escapeRegex, "\\$&"), {
+      end: false
+    });
+    const matchResult = routeMatcher(requestPath);
+    const mountMatchResult = mountMatcher(requestPath);
+    if (matchResult && mountMatchResult) {
+      for (const handler of route.middlewares.flat()) {
+        yield {
+          handler,
+          params: matchResult.params,
+          path: mountMatchResult.path
+        };
+      }
+    }
+  }
+  for (const route of routes) {
+    if (route.method && route.method !== request.method) {
+      continue;
+    }
+    const routeMatcher = match(route.routePath.replace(escapeRegex, "\\$&"), {
+      end: true
+    });
+    const mountMatcher = match(route.mountPath.replace(escapeRegex, "\\$&"), {
+      end: false
+    });
+    const matchResult = routeMatcher(requestPath);
+    const mountMatchResult = mountMatcher(requestPath);
+    if (matchResult && mountMatchResult && route.modules.length) {
+      for (const handler of route.modules.flat()) {
+        yield {
+          handler,
+          params: matchResult.params,
+          path: matchResult.path
+        };
+      }
+      break;
+    }
+  }
+}
+__name(executeRequest, "executeRequest");
+var pages_template_worker_default = {
+  async fetch(originalRequest, env, workerContext) {
+    let request = originalRequest;
+    const handlerIterator = executeRequest(request);
+    let data = {};
+    let isFailOpen = false;
+    const next = /* @__PURE__ */ __name(async (input, init) => {
+      if (input !== void 0) {
+        let url = input;
+        if (typeof input === "string") {
+          url = new URL(input, request.url).toString();
+        }
+        request = new Request(url, init);
+      }
+      const result = handlerIterator.next();
+      if (result.done === false) {
+        const { handler, params, path } = result.value;
+        const context = {
+          request: new Request(request.clone()),
+          functionPath: path,
+          next,
+          params,
+          get data() {
+            return data;
+          },
+          set data(value) {
+            if (typeof value !== "object" || value === null) {
+              throw new Error("context.data must be an object");
+            }
+            data = value;
+          },
+          env,
+          waitUntil: workerContext.waitUntil.bind(workerContext),
+          passThroughOnException: /* @__PURE__ */ __name(() => {
+            isFailOpen = true;
+          }, "passThroughOnException")
+        };
+        const response = await handler(context);
+        if (!(response instanceof Response)) {
+          throw new Error("Your Pages function should return a Response");
+        }
+        return cloneResponse(response);
+      } else if ("ASSETS") {
+        const response = await env["ASSETS"].fetch(request);
+        return cloneResponse(response);
+      } else {
+        const response = await fetch(request);
+        return cloneResponse(response);
+      }
+    }, "next");
+    try {
+      return await next();
+    } catch (error) {
+      if (isFailOpen) {
+        const response = await env["ASSETS"].fetch(request);
+        return cloneResponse(response);
+      }
+      throw error;
+    }
+  }
+};
+var cloneResponse = /* @__PURE__ */ __name((response) => (
+  // https://fetch.spec.whatwg.org/#null-body-status
+  new Response(
+    [101, 204, 205, 304].includes(response.status) ? null : response.body,
+    response
+  )
+), "cloneResponse");
+export {
+  pages_template_worker_default as default
+};
+
+------formdata-undici-043422499989--

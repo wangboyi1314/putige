@@ -24,7 +24,7 @@ export default function GuaPage() {
   const [casting, setCasting] = useState(false);
   const [resultVersion, setResultVersion] = useState(0);
 
-  const interpret = useCallback(async (guaResult: GuaResult, isPremium: boolean) => {
+  const interpret = useCallback(async (guaResult: GuaResult, isPremium: boolean, paidOrderId?: string) => {
     setLoading(true);
     try {
       const res = await fetch("/api/interpret", {
@@ -34,13 +34,18 @@ export default function GuaPage() {
           type: "gua",
           question,
           isPremium,
+          orderId: paidOrderId,
           masterId,
           data: { benGua: guaResult.benGua, huGua: guaResult.huGua, bianGua: guaResult.bianGua, changingLines: guaResult.changingLines, lines: guaResult.lines },
         }),
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "解读失败");
       if (isPremium) setPremiumInterpretation(data.interpretation || "");
       else setInterpretation(data.interpretation || "");
+    } catch (e) {
+      if (!isPremium) setInterpretation("");
+      console.error(e);
     } finally {
       setLoading(false);
     }
@@ -124,7 +129,11 @@ export default function GuaPage() {
               ))}
             </div>
             {interpretation ? (
-              <Paywall productId="gua_premium" onUnlock={() => result && interpret(result, true)} preview={<Interpretation content={interpretation} />}>
+              <Paywall
+                productId="gua_premium"
+                previewContent={interpretation}
+                onUnlock={(orderId) => result && interpret(result, true, orderId)}
+              >
                 <Interpretation content={premiumInterpretation} loading={loading} />
               </Paywall>
             ) : (

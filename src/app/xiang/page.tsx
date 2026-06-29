@@ -23,7 +23,7 @@ export default function XiangPage() {
   const [loading, setLoading] = useState(false);
   const [imageName, setImageName] = useState("");
 
-  async function analyze(isPremium: boolean) {
+  async function analyze(isPremium: boolean, paidOrderId?: string) {
     if (!imageName) return;
     setLoading(true);
     try {
@@ -34,6 +34,7 @@ export default function XiangPage() {
           type: "xiang",
           question: `重点看${focus}`,
           isPremium,
+          orderId: paidOrderId,
           masterId,
           data: {
             type: type === "palm" ? "手相" : "面相",
@@ -47,11 +48,15 @@ export default function XiangPage() {
         }),
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "解读失败");
       if (isPremium) setFull(data.interpretation || "");
       else {
         setPreview(data.interpretation || "");
         saveRecord({ type: "xiang", title: type === "palm" ? "手相分析" : "面相分析", summary: focus });
       }
+    } catch (e) {
+      if (!isPremium) setPreview("");
+      console.error(e);
     } finally {
       setLoading(false);
     }
@@ -116,7 +121,11 @@ export default function XiangPage() {
         </div>
 
         {preview && (
-          <Paywall productId="xiang_premium" onUnlock={() => analyze(true)} preview={<Interpretation content={preview} />}>
+          <Paywall
+            productId="xiang_premium"
+            previewContent={preview}
+            onUnlock={(orderId) => analyze(true, orderId)}
+          >
             <Interpretation content={full} loading={loading} />
           </Paywall>
         )}

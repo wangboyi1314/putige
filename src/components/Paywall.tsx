@@ -2,22 +2,27 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
+import { Interpretation } from "@/components/Interpretation";
 import { PRODUCTS, type ProductId } from "@/lib/payment";
+import {
+  clearLegacyPaidFlags,
+  savePaidOrder,
+  verifyPaidSession,
+} from "@/lib/paid-session";
+import { truncatePreview } from "@/lib/preview";
 
 interface PaywallProps {
   productId: ProductId;
-  onUnlock: () => void;
+  previewContent: string;
+  onUnlock: (orderId: string) => void | Promise<void>;
   children: React.ReactNode;
-  preview: React.ReactNode;
 }
 
-function paidStorageKey(productId: ProductId) {
-  return `bodhi_paid_${productId}`;
-}
-
-export function Paywall({ productId, onUnlock, children, preview }: PaywallProps) {
+export function Paywall({ productId, previewContent, onUnlock, children }: PaywallProps) {
   const [unlocked, setUnlocked] = useState(false);
+  const [paidOrderId, setPaidOrderId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [error, setError] = useState("");
   const [showPay, setShowPay] = useState(false);
   const [orderId, setOrderId] = useState("");
@@ -32,30 +37,45 @@ export function Paywall({ productId, onUnlock, children, preview }: PaywallProps
 
   const product = PRODUCTS[productId];
 
-  const markUnlocked = useCallback(() => {
-    localStorage.setItem(paidStorageKey(productId), "1");
-    setUnlocked(true);
-    setShowPay(false);
-    setPolling(false);
-    onUnlock();
+  const markUnlocked = useCallback(
+    (oid: string) => {
+      savePaidOrder(productId, oid);
+      setPaidOrderId(oid);
+      setUnlocked(true);
+      setShowPay(false);
+      setPolling(false);
+      void onUnlock(oid);
+    },
+    [productId, onUnlock]
+  );
+
+  useEffect(() => {
+    clearLegacyPaidFlags();
+    let cancelled = false;
+    void verifyPaidSession(productId).then((oid) => {
+      if (cancelled) return;
+      if (oid) {
+        setPaidOrderId(oid);
+        setUnlocked(true);
+        void onUnlock(oid);
+      }
+      setCheckingSession(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [productId, onUnlock]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (localStorage.getItem(paidStorageKey(productId)) === "1") {
-      setUnlocked(true);
-    }
-
     function handlePaymentUnlock(e: Event) {
-      const detail = (e as CustomEvent<{ productId: ProductId }>).detail;
-      if (detail?.productId === productId) {
-        setUnlocked(true);
-        onUnlock();
+      const detail = (e as CustomEvent<{ productId: ProductId; orderId: string }>).detail;
+      if (detail?.productId === productId && detail.orderId) {
+        markUnlocked(detail.orderId);
       }
     }
     window.addEventListener("bodhi-payment-unlock", handlePaymentUnlock);
     return () => window.removeEventListener("bodhi-payment-unlock", handlePaymentUnlock);
-  }, [productId, onUnlock]);
+  }, [productId, markUnlocked]);
 
   useEffect(() => {
     if (!polling || !orderId) return;
@@ -64,7 +84,7 @@ export function Paywall({ productId, onUnlock, children, preview }: PaywallProps
         const res = await fetch(`/api/payment/status?orderId=${encodeURIComponent(orderId)}`);
         const data = await res.json();
         if (data.paid) {
-          markUnlocked();
+          markUnlocked(orderId);
         }
       } catch {
         /* 继续轮询 */
@@ -102,7 +122,7 @@ export function Paywall({ productId, onUnlock, children, preview }: PaywallProps
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ orderId: data.orderId }),
         });
-        if (confirmRes.ok) markUnlocked();
+        if (confirmRes.ok) markUnlocked(data.orderId);
         else throw new Error("确认支付失败");
       } else {
         setShowPay(true);
@@ -129,7 +149,7 @@ export function Paywall({ productId, onUnlock, children, preview }: PaywallProps
       });
       const data = await confirmRes.json();
       if (!confirmRes.ok) throw new Error(data.error || "确认失败");
-      markUnlocked();
+      markUnlocked(orderId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "确认失败，请重试");
     } finally {
@@ -137,30 +157,43 @@ export function Paywall({ productId, onUnlock, children, preview }: PaywallProps
     }
   }
 
+  if (checkingSession) {
+    return (
+      <div className="p-6 rounded-xl border border-amber-800/20 bg-amber-950/10 text-center text-amber-500/60 text-sm">
+        正在检查支付状态…
+      </div>
+    );
+  }
+
   if (unlocked) return <>{children}</>;
+
+  const shortPreview = truncatePreview(previewContent);
 
   return (
     <div className="relative space-y-4">
-      <div className="text-center p-5 sm:p-6 rounded-xl border border-amber-500/35 bg-gradient-to-b from-amber-950/50 to-amber-950/25 shadow-lg shadow-amber-900/20">
-        <p className="text-amber-300 font-serif text-lg mb-1">{product.name}</p>
-        <p className="text-amber-600/70 text-sm mb-4">{product.description}</p>
+      <div className="text-center p-5 sm:p-6 rounded-xl border-2 border-amber-500/50 bg-gradient-to-b from-amber-900/40 to-amber-950/30 shadow-lg shadow-amber-900/30">
+        <p className="text-amber-200 font-serif text-lg mb-1">🔒 {product.name}</p>
+        <p className="text-amber-500/80 text-sm mb-4">{product.description}</p>
         <button
           type="button"
           onClick={() => startPay()}
           disabled={loading}
-          className="w-full sm:w-auto px-10 py-3.5 bg-gradient-to-r from-amber-600 to-amber-500 text-amber-950 rounded-full font-semibold hover:from-amber-500 hover:to-amber-400 transition-all disabled:opacity-50 shadow-lg shadow-amber-900/40 text-base"
+          className="w-full px-10 py-4 bg-gradient-to-r from-amber-500 to-amber-400 text-amber-950 rounded-full font-bold hover:from-amber-400 hover:to-amber-300 transition-all disabled:opacity-50 shadow-lg shadow-amber-900/50 text-lg"
         >
-          {loading && !showPay ? "处理中..." : `解锁完整详批 ¥${product.price}`}
+          {loading && !showPay ? "正在拉起支付…" : `解锁完整详批 ¥${product.price}`}
         </button>
         {error && !showPay && <p className="text-red-400 text-sm mt-3">{error}</p>}
-        <p className="text-amber-400/45 text-xs mt-3">微信 / 支付宝扫码 · 付款后自动解锁</p>
+        <p className="text-amber-400/60 text-xs mt-3">微信 / 支付宝扫码 · 付款后自动解锁</p>
+        {paidOrderId && (
+          <p className="text-amber-600/50 text-[10px] mt-1">本会话已支付订单 {paidOrderId.slice(-8)}</p>
+        )}
       </div>
 
-      <div className="relative overflow-hidden rounded-xl max-h-72 sm:max-h-80">
-        {preview}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#1a1208]/50 to-[#1a1208] pointer-events-none" />
-        <p className="absolute bottom-3 inset-x-0 text-center text-amber-400/70 text-xs pointer-events-none">
-          以上为免费预览 · 付费解锁完整详批
+      <div className="relative overflow-hidden rounded-xl max-h-48 sm:max-h-56">
+        <Interpretation content={shortPreview} />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#1a1208]/70 to-[#1a1208] pointer-events-none" />
+        <p className="absolute bottom-3 inset-x-0 text-center text-amber-300/90 text-xs font-medium pointer-events-none">
+          ↑ 以上为免费预览 · 完整内容需付费解锁
         </p>
       </div>
 

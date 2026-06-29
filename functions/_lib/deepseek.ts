@@ -52,10 +52,7 @@ const TYPE_PROMPTS: Record<DivinationType, string> = {
 - 性情、感情、事业、财运要点
 - 只分析可见部分，不可见处不要编造`,
 
-  naming: `你正在为新生儿取名或测评姓名。请：
-- 结合八字喜忌与五行补益
-- 给出多个候选名字及寓意、音韵分析
-- 引述典故诗词出处`,
+  naming: `你正在为新生儿取名或测评姓名。免费预览只说明八字喜忌1句话；付费版须给出至少5个完整候选名字（含寓意、音韵、五行、典故出处）。`,
 };
 
 export interface InterpretRequest {
@@ -71,7 +68,7 @@ export function buildPrompt(req: InterpretRequest): { system: string; user: stri
   const master = getMaster(req.masterId || "huiming");
   const premiumNote = req.isPremium
     ? "请提供完整详尽的深度解读，不少于800字，涵盖各方面分析。"
-    : "请提供简洁概要解读，约200字，末尾提示「解锁完整详批可获更深解读」。";
+    : "【强制限制】免费预览不得超过80字，只写1～2句最核心概要，禁止展开大运、建议列表或逐句释义。末尾必须单独一行写：「↓ 点击下方按钮解锁完整详批」。";
 
   const masterNote = `你现在以「${master.name}」（${master.title}）的身份解读，风格：${master.style}。${master.description}`;
 
@@ -90,7 +87,8 @@ import { envGet } from "./runtime-env";
 export async function callDeepSeek(
   system: string,
   user: string,
-  runtimeEnv?: RuntimeEnv
+  runtimeEnv?: RuntimeEnv,
+  isPremium = false
 ): Promise<string> {
   const apiKey = envGet("DEEPSEEK_API_KEY", runtimeEnv);
   if (!apiKey) {
@@ -112,7 +110,7 @@ export async function callDeepSeek(
         { role: "user", content: user },
       ],
       temperature: 0.7,
-      max_tokens: 2000,
+      max_tokens: isPremium ? 2000 : 180,
     }),
   });
 

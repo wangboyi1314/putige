@@ -21,7 +21,7 @@ export default function QianPage() {
   const [loading, setLoading] = useState(false);
   const [resultVersion, setResultVersion] = useState(0);
 
-  async function fetchInterpretation(target: QianStick, isPremium: boolean) {
+  async function fetchInterpretation(target: QianStick, isPremium: boolean, paidOrderId?: string) {
     setLoading(true);
     try {
       const res = await fetch("/api/interpret", {
@@ -31,13 +31,18 @@ export default function QianPage() {
           type: "qian",
           question,
           isPremium,
+          orderId: paidOrderId,
           masterId,
           data: { ...target, signType: "关帝灵签" },
         }),
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "解读失败");
       if (isPremium) setPremiumInterpretation(data.interpretation || "");
       else setInterpretation(data.interpretation || "");
+    } catch (e) {
+      if (!isPremium) setInterpretation("");
+      console.error(e);
     } finally {
       setLoading(false);
     }
@@ -104,7 +109,11 @@ export default function QianPage() {
               <p className="text-amber-300/60 text-sm mt-2">{stick.meaning}</p>
             </div>
             {interpretation ? (
-              <Paywall productId="qian_premium" onUnlock={() => stick && fetchInterpretation(stick, true)} preview={<Interpretation content={interpretation} />}>
+              <Paywall
+                productId="qian_premium"
+                previewContent={interpretation}
+                onUnlock={(orderId) => stick && fetchInterpretation(stick, true, orderId)}
+              >
                 <Interpretation content={premiumInterpretation} loading={loading} />
               </Paywall>
             ) : (

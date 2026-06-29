@@ -27,7 +27,7 @@ export default function DreamPage() {
     setInterpretation("");
   }
 
-  async function selectDream(dream: DreamEntry, isPremium = false) {
+  async function selectDream(dream: DreamEntry, isPremium = false, paidOrderId?: string) {
     if (!isPremium) {
       setSelected(dream);
       setInterpretation("");
@@ -40,11 +40,15 @@ export default function DreamPage() {
       const res = await fetch("/api/interpret", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "dream", question: query, isPremium, data: dream }),
+        body: JSON.stringify({ type: "dream", question: query, isPremium, orderId: paidOrderId, data: dream }),
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "解读失败");
       if (isPremium) setPremiumInterpretation(data.interpretation || "");
       else setInterpretation(data.interpretation || "");
+    } catch (e) {
+      if (!isPremium) setInterpretation("");
+      console.error(e);
     } finally {
       setLoading(false);
     }
@@ -104,7 +108,11 @@ export default function DreamPage() {
               <p className="text-amber-200/70 text-sm">{selected.brief}</p>
             </div>
             {interpretation ? (
-              <Paywall productId="dream_premium" onUnlock={() => selectDream(selected, true)} preview={<Interpretation content={interpretation} />}>
+              <Paywall
+                productId="dream_premium"
+                previewContent={interpretation}
+                onUnlock={(orderId) => selectDream(selected, true, orderId)}
+              >
                 <Interpretation content={premiumInterpretation} loading={loading} />
               </Paywall>
             ) : (

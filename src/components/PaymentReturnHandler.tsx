@@ -2,10 +2,7 @@
 
 import { useEffect } from "react";
 import type { ProductId } from "@/lib/payment";
-
-function paidStorageKey(productId: ProductId) {
-  return `bodhi_paid_${productId}`;
-}
+import { savePaidOrder } from "@/lib/paid-session";
 
 /** 处理虎皮椒支付完成后的 return_url 跳转，自动解锁对应商品 */
 export function PaymentReturnHandler() {
@@ -30,9 +27,11 @@ export function PaymentReturnHandler() {
           );
           const data = await res.json();
           if (data.paid) {
-            localStorage.setItem(paidStorageKey(productId!), "1");
+            savePaidOrder(productId!, orderId!);
             window.dispatchEvent(
-              new CustomEvent("bodhi-payment-unlock", { detail: { productId } })
+              new CustomEvent("bodhi-payment-unlock", {
+                detail: { productId, orderId },
+              })
             );
             const url = new URL(window.location.href);
             url.searchParams.delete("paid");
