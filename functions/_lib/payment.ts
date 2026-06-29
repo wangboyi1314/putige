@@ -127,7 +127,14 @@ import type { RuntimeEnv } from "./runtime-env";
 import { envGet } from "./runtime-env";
 
 function paymentMode(runtimeEnv?: RuntimeEnv): string | undefined {
-  return envGet("PAYMENT_MODE", runtimeEnv);
+  const fromEnv = envGet("PAYMENT_MODE", runtimeEnv);
+  const baseUrl = envGet("NEXT_PUBLIC_BASE_URL", runtimeEnv) || "";
+  const isPutigeProd =
+    baseUrl.includes("putige-eh2.pages.dev") || baseUrl.includes("putige.pages.dev");
+  if (isPutigeProd && (!fromEnv || fromEnv === "demo")) {
+    return "xunhu";
+  }
+  return fromEnv;
 }
 
 export function isDemoMode(runtimeEnv?: RuntimeEnv): boolean {
