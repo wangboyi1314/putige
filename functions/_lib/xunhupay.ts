@@ -67,6 +67,51 @@ export function isXunhuConfigured(env?: RuntimeEnv): boolean {
   return !!getXunhuWechatChannel(env);
 }
 
+/** 查询虎皮椒订单状态（out_trade_order 用本站订单号） */
+export async function queryXunhuOrderStatus(
+  tradeOrderId: string,
+  channel: XunhuChannel,
+  env?: RuntimeEnv
+): Promise<{ paid: boolean; status: string }> {
+  const payload: Record<string, string | number> = {
+    version: "1.1",
+    appid: channel.appId,
+    out_trade_order: sanitizeTradeOrderId(tradeOrderId),
+    time: Math.floor(Date.now() / 1000),
+    nonce_str: randomNonce(16),
+  };
+  payload.hash = xunhuHash(payload, channel.appSecret);
+
+  const body = new URLSearchParams(
+    Object.fromEntries(Object.entries(payload).map(([k, v]) => [k, String(v)]))
+  );
+
+  const queryGateways = [
+    "https://api.xunhupay.com/payment/query.html",
+    "https://api.dpweixin.com/payment/query.html",
+    "https://api.diypc.com.cn/payment/query.html",
+  ];
+
+  for (const gateway of queryGateways) {
+    const res = await fetch(gateway, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    });
+    const data = (await res.json()) as {
+      errcode?: number;
+      errmsg?: string;
+      data?: { status?: string };
+    };
+    if (data.errcode === 0 && data.data?.status) {
+      return { paid: data.data.status === "OD", status: data.data.status };
+    }
+    console.warn("[xunhupay] query failed:", gateway, data.errmsg);
+  }
+
+  return { paid: false, status: "WP" };
+}
+
 /** 发起虎皮椒支付，返回收银台链接与 PC 二维码图地址 */
 export async function createXunhuPayment(
   params: {

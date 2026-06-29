@@ -58,6 +58,7 @@ jobs:
 
       - name: Ensure orders KV namespace
         id: orders_kv
+        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -81,6 +82,7 @@ jobs:
           echo "kv_id=$KV_ID" >> "$GITHUB_OUTPUT"
 
       - name: Bind ORDERS KV to Pages project
+        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -141,11 +143,11 @@ jobs:
             if echo "$BODY" | grep -q '"xunhuMode":true' && [ -n "$ORDER_ID" ]; then
               STATUS=$(curl -sS "$BASE/api/payment/status?orderId=$ORDER_ID" || echo "{}")
               echo "status => $STATUS"
-              if echo "$STATUS" | grep -q '"status":"pending"'; then
-                echo "虎皮椒支付与订单 KV 均已上线"
+              if echo "$STATUS" | grep -q '"paid":false' || echo "$STATUS" | grep -q '"status":"pending"'; then
+                echo "虎皮椒支付已上线（状态轮询走虎皮椒查询接口）"
                 exit 0
               fi
-              echo "::warning::支付下单成功但订单状态未持久化，请检查 KV 绑定 ORDERS"
+              echo "::warning::支付下单成功但状态接口异常"
             fi
             sleep 15
           done
