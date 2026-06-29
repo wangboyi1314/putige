@@ -1,6 +1,6 @@
-import { isDemoMode, isXunhuMode } from "../../_lib/payment";
-import { envGet } from "../../_lib/runtime-env";
-import { envFrom, json, type PagesEnv } from "../../_lib/http";
+import { isDemoMode, isXunhuMode } from "../_lib/payment";
+import { envGet } from "../_lib/runtime-env";
+import { envFrom, json, type PagesEnv } from "../_lib/http";
 
 export const onRequestGet: PagesFunction<PagesEnv> = async (context) => {
   const env = envFrom(context);
