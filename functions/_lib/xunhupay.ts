@@ -3,6 +3,10 @@ import type { RuntimeEnv } from "./runtime-env";
 import { envGet } from "./runtime-env";
 
 const DEFAULT_GATEWAY = "https://api.xunhupay.com/payment/do.html";
+const FALLBACK_GATEWAYS = [
+  "https://api.dpweixin.com/payment/do.html",
+  "https://pay.xunhupay.com/payment/do.html",
+];
 
 export interface XunhuChannel {
   appId: string;
@@ -75,7 +79,6 @@ export async function createXunhuPayment(
   },
   env?: RuntimeEnv
 ): Promise<XunhuCreateResult> {
-  const gateway = envGet("XUNHU_API_URL", env) || DEFAULT_GATEWAY;
   const tradeOrderId = sanitizeTradeOrderId(params.orderId);
   const payload: Record<string, string | number> = {
     version: "1.1",
@@ -98,29 +101,29 @@ export async function createXunhuPayment(
     Object.fromEntries(Object.entries(payload).map(([k, v]) => [k, String(v)]))
   );
 
-  let res = await fetch(gateway, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  });
+  const gateways = [
+    envGet("XUNHU_API_URL", env) || DEFAULT_GATEWAY,
+    ...FALLBACK_GATEWAYS,
+  ].filter((g, i, arr) => arr.indexOf(g) === i);
 
-  let data = (await res.json()) as {
+  let data: {
     errcode?: number;
     errmsg?: string;
     url?: string;
     url_qrcode?: string;
     openid?: string;
     hash?: string;
-  };
+  } = {};
 
-  if (data.errcode !== 0 && gateway === DEFAULT_GATEWAY) {
-    const alt = "https://api.dpweixin.com/payment/do.html";
-    res = await fetch(alt, {
+  for (const gateway of gateways) {
+    const res = await fetch(gateway, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,
     });
     data = (await res.json()) as typeof data;
+    if (data.errcode === 0 && data.url) break;
+    console.warn("[xunhupay] gateway failed:", gateway, data.errmsg);
   }
 
   if (data.errcode !== 0 || !data.url) {
