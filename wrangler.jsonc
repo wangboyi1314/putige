@@ -1,7 +1,6 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "putige",
-	"account_id": "70ebb96ad3d3a7c5e308a26ac50862dc",
 	"compatibility_date": "2026-06-25",
 	"pages_build_output_dir": "out",
 	"compatibility_flags": [
