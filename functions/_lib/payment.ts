@@ -131,7 +131,10 @@ function paymentMode(runtimeEnv?: RuntimeEnv): string | undefined {
 }
 
 export function isDemoMode(runtimeEnv?: RuntimeEnv): boolean {
-  return paymentMode(runtimeEnv) === "demo";
+  if (paymentMode(runtimeEnv) !== "demo") return false;
+  const appSecret = envGet("XUNHU_APP_SECRET", runtimeEnv);
+  const appId = envGet("XUNHU_APP_ID", runtimeEnv) || "20211120137";
+  return !(appId && appSecret);
 }
 
 /** 个人收款码：展示静态码，用户手动确认 */
@@ -147,5 +150,8 @@ export function isMerchantMode(runtimeEnv?: RuntimeEnv): boolean {
 /** 虎皮椒等聚合支付：个人可接入，自动回调 */
 export function isXunhuMode(runtimeEnv?: RuntimeEnv): boolean {
   const mode = paymentMode(runtimeEnv);
-  return mode === "xunhu" || mode === "aggregator";
+  if (mode === "xunhu" || mode === "aggregator") return true;
+  const appSecret = envGet("XUNHU_APP_SECRET", runtimeEnv);
+  const appId = envGet("XUNHU_APP_ID", runtimeEnv) || "20211120137";
+  return !!(appId && appSecret);
 }

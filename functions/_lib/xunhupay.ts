@@ -44,9 +44,9 @@ export function sanitizeTradeOrderId(orderId: string): string {
 }
 
 export function getXunhuWechatChannel(env?: RuntimeEnv): XunhuChannel | null {
-  const appId = envGet("XUNHU_APP_ID", env);
+  const appId = envGet("XUNHU_APP_ID", env) || "20211120137";
   const appSecret = envGet("XUNHU_APP_SECRET", env);
-  if (!appId || !appSecret) return null;
+  if (!appSecret) return null;
   return { appId, appSecret, label: "微信" };
 }
 

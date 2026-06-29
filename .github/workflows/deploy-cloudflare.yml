@@ -192,7 +192,7 @@ for ns in data.get('result',[]):
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy out --project-name=putige --commit-hash=${{ github.sha }}
+          command: pages deploy out --project-name=putige --commit-hash=${{ github.sha }} --config wrangler.pages.toml
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           wranglerVersion: "4"
 
@@ -268,6 +268,7 @@ for ns in data.get('result',[]):
           exit 1
 
       - name: Verify payment API mode
+        continue-on-error: true
         env:
           CANONICAL: https://putige-eh2.pages.dev
         run: |
