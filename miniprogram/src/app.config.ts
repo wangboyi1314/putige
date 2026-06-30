@@ -1,0 +1,28 @@
+export default defineAppConfig({
+  pages: [
+    "pages/index/index",
+    "pages/huangli/index",
+    "pages/qian/index",
+    "pages/gua/index",
+    "pages/bazi/index",
+    "pages/ziwei/index",
+    "pages/qimen/index",
+    "pages/dream/index",
+    "pages/naming/index",
+    "pages/lamp/index",
+    "pages/meditation/index",
+    "pages/incense/index",
+    "pages/xiang/index",
+    "pages/mine/index",
+    "pages/legal/terms/index",
+    "pages/legal/privacy/index",
+    "pages/legal/ai/index",
+  ],
+  window: {
+    backgroundTextStyle: "light",
+    navigationBarBackgroundColor: "#1a1208",
+    navigationBarTitleText: "菩提阁",
+    navigationBarTextStyle: "white",
+    backgroundColor: "#1a1208",
+  },
+});

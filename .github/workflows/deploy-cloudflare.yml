@@ -154,6 +154,23 @@ jobs:
           echo "::error::支付 API 未完全就绪，请检查 Cloudflare 环境变量与 KV"
           exit 1
 
+      - name: Verify miniprogram API
+        continue-on-error: true
+        env:
+          CANONICAL: https://putige-eh2.pages.dev
+        run: |
+          set -euo pipefail
+          BODY=$(curl -sS "${CANONICAL}/api/mp/health" \
+            -H "X-Bodhi-Platform: miniprogram" || echo "{}")
+          echo "mp/health => $BODY"
+          echo "$BODY" | grep -q '"platform":"miniprogram"' || echo "::warning::小程序 API 未就绪"
+          INTERP=$(curl -sS -X POST "${CANONICAL}/api/mp/interpret" \
+            -H "Content-Type: application/json" \
+            -H "X-Bodhi-Platform: miniprogram" \
+            -H "X-Bodhi-Client: ci_smoke_test" \
+            -d '{"type":"qian","isPremium":false,"masterId":"huiming","data":{"number":1,"level":"上吉","poem":"测试","story":"测试","meaning":"测试","signType":"关帝灵签"}}' || echo "{}")
+          echo "mp/interpret => ${INTERP:0:200}"
+
       - name: Deployment info
         if: always() && !cancelled()
         run: |

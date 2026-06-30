@@ -1,0 +1,64 @@
+.label {
+  display: block;
+  font-size: 24rpx;
+  color: rgba(254, 243, 199, 0.55);
+  margin-bottom: 12rpx;
+  margin-top: 20rpx;
+}
+
+.input {
+  width: 100%;
+  padding: 20rpx 24rpx;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1rpx solid rgba(240, 193, 74, 0.2);
+  border-radius: 12rpx;
+  color: #fef3c7;
+  font-size: 28rpx;
+  box-sizing: border-box;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.style-chip {
+  padding: 12rpx 24rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid rgba(240, 193, 74, 0.2);
+  font-size: 24rpx;
+  color: rgba(254, 243, 199, 0.6);
+}
+
+.style-chip.active {
+  background: rgba(240, 193, 74, 0.15);
+  border-color: rgba(240, 193, 74, 0.5);
+  color: #fde68a;
+}
+
+.mt {
+  margin-top: 24rpx;
+}
+
+.mode-row {
+  display: flex;
+  gap: 16rpx;
+  margin-bottom: 8rpx;
+}
+
+.mode-chip {
+  flex: 1;
+  text-align: center;
+  padding: 16rpx;
+  border-radius: 12rpx;
+  border: 1rpx solid rgba(240, 193, 74, 0.2);
+  font-size: 26rpx;
+  color: rgba(254, 243, 199, 0.55);
+}
+
+.mode-chip.active {
+  background: rgba(240, 193, 74, 0.12);
+  border-color: rgba(240, 193, 74, 0.45);
+  color: #fde68a;
+}

@@ -1,0 +1,77 @@
+.date-card {
+  text-align: center;
+}
+
+.date-main {
+  display: block;
+  font-size: 36rpx;
+  color: #fcd34d;
+}
+
+.date-sub {
+  display: block;
+  font-size: 26rpx;
+  color: rgba(254, 243, 199, 0.55);
+  margin-top: 8rpx;
+}
+
+.date-gz {
+  display: block;
+  font-size: 32rpx;
+  color: #fbbf24;
+  margin-top: 16rpx;
+  letter-spacing: 0.1em;
+}
+
+.date-meta {
+  display: block;
+  font-size: 24rpx;
+  color: rgba(254, 243, 199, 0.4);
+  margin-top: 12rpx;
+}
+
+.section-title {
+  display: block;
+  font-size: 30rpx;
+  margin-bottom: 16rpx;
+}
+
+.yi-title { color: #86efac; }
+.ji-title { color: #fca5a5; }
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16rpx;
+  font-size: 24rpx;
+  color: rgba(254, 243, 199, 0.7);
+}
+
+.shichen-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12rpx;
+}
+
+.shichen-item {
+  text-align: center;
+  padding: 16rpx 8rpx;
+  border-radius: 12rpx;
+  font-size: 22rpx;
+}
+
+.shichen-吉 { background: rgba(22, 101, 52, 0.25); border: 1rpx solid rgba(34, 197, 94, 0.2); }
+.shichen-凶 { background: rgba(127, 29, 29, 0.25); border: 1rpx solid rgba(239, 68, 68, 0.2); }
+.shichen-平 { background: rgba(40, 28, 12, 0.5); border: 1rpx solid rgba(240, 193, 74, 0.15); }
+
+.sc-name { display: block; color: #fde68a; font-size: 26rpx; }
+.sc-gz { display: block; color: rgba(254, 243, 199, 0.4); font-size: 20rpx; }
+.sc-time { display: block; color: rgba(254, 243, 199, 0.35); font-size: 18rpx; }
+.luck-吉 { color: #86efac; }
+.luck-凶 { color: #fca5a5; }
+.luck-平 { color: #fbbf24; }

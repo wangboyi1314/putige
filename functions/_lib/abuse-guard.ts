@@ -7,13 +7,13 @@ const SUSPICIOUS_UA = /curl|wget|python-requests|scrapy|httpclient|go-http|java\
 const MAX_CID_IPS_PER_HOUR = 4;
 const BLOCK_TTL = 86400;
 
-interface GuardResult {
-  ok: true;
-} | {
-  ok: false;
-  body: ApiErrorBody;
-  status: number;
-}
+type GuardResult =
+  | { ok: true }
+  | {
+      ok: false;
+      body: ApiErrorBody;
+      status: number;
+    };
 
 interface CfProps {
   botManagement?: { score?: number };

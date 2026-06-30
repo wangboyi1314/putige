@@ -1,0 +1,71 @@
+.info-row {
+  display: block;
+  font-size: 24rpx;
+  color: rgba(254, 243, 199, 0.5);
+}
+
+.info-value {
+  display: block;
+  font-size: 24rpx;
+  color: #fde68a;
+  word-break: break-all;
+  margin-top: 8rpx;
+}
+
+.mt {
+  margin-top: 20rpx;
+}
+
+.health-text {
+  display: block;
+  margin-top: 20rpx;
+  font-size: 24rpx;
+  color: #86efac;
+}
+
+.legal Text {
+  display: block;
+  font-size: 24rpx;
+  color: rgba(254, 243, 199, 0.55);
+  line-height: 2;
+}
+
+.section-title {
+  display: block;
+  font-size: 28rpx;
+  color: #fbbf24;
+  margin-bottom: 16rpx;
+}
+
+.record-item {
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid rgba(240, 193, 74, 0.1);
+}
+
+.record-title {
+  display: block;
+  font-size: 28rpx;
+  color: #fde68a;
+}
+
+.record-meta {
+  display: block;
+  font-size: 22rpx;
+  color: rgba(254, 243, 199, 0.45);
+  margin-top: 6rpx;
+}
+
+.legal-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid rgba(240, 193, 74, 0.1);
+  font-size: 28rpx;
+  color: #fde68a;
+}
+
+.link-arrow {
+  color: rgba(240, 193, 74, 0.5);
+  font-size: 36rpx;
+}

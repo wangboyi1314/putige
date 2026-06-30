@@ -2,8 +2,17 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "putige",
 	"compatibility_date": "2026-06-25",
+	"pages_build_output_dir": "out",
 	"compatibility_flags": [
 		"nodejs_compat",
 		"global_fetch_strictly_public"
-	]
+	],
+	"vars": {
+		"DEEPSEEK_BASE_URL": "https://api.deepseek.com",
+		"DEEPSEEK_MODEL": "deepseek-chat",
+		"PAYMENT_MODE": "xunhu",
+		"MP_PAYMENT_MODE": "demo",
+		"XUNHU_APP_ID": "20211120137",
+		"NEXT_PUBLIC_BASE_URL": "https://putige-eh2.pages.dev"
+	}
 }

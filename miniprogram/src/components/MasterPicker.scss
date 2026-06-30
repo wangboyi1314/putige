@@ -1,0 +1,26 @@
+.master-picker .label {
+  display: block;
+  font-size: 24rpx;
+  color: rgba(254, 243, 199, 0.5);
+  margin-bottom: 12rpx;
+}
+
+.master-picker .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.master-picker .chip {
+  padding: 12rpx 24rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid rgba(240, 193, 74, 0.2);
+  font-size: 24rpx;
+  color: rgba(254, 243, 199, 0.7);
+}
+
+.master-picker .chip.active {
+  background: rgba(217, 119, 6, 0.35);
+  border-color: #fbbf24;
+  color: #fde68a;
+}
