@@ -47,6 +47,8 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           NEXT_PUBLIC_BASE_URL: https://putige-eh2.pages.dev
           PAYMENT_MODE: xunhu
+          NEXT_PUBLIC_UMAMI_WEBSITE_ID: ${{ secrets.NEXT_PUBLIC_UMAMI_WEBSITE_ID }}
+          NEXT_PUBLIC_UMAMI_SCRIPT_URL: ${{ secrets.NEXT_PUBLIC_UMAMI_SCRIPT_URL }}
 
       - name: Package Pages bundle with Functions
         run: |

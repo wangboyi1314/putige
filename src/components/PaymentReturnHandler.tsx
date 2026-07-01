@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import type { ProductId } from "@/lib/payment";
 import { savePaidOrder } from "@/lib/paid-session";
+import { trackEvent } from "@/lib/analytics";
 
 /** 处理虎皮椒支付完成后的 return_url 跳转，自动解锁对应商品 */
 export function PaymentReturnHandler() {
@@ -28,6 +29,11 @@ export function PaymentReturnHandler() {
           const data = await res.json();
           if (data.paid) {
             savePaidOrder(productId!, orderId!);
+            trackEvent("payment_success", {
+              product_id: productId!,
+              order_suffix: orderId!.slice(-8),
+              source: "return",
+            });
             window.dispatchEvent(
               new CustomEvent("bodhi-payment-unlock", {
                 detail: { productId, orderId },

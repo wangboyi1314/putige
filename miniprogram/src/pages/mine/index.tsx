@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { View, Text, Button, Navigator } from "@tarojs/components";
 import Taro from "@tarojs/taro";
-import { SITE, API_BASE, LEGAL_LINKS } from "../../config";
+import { SITE, API_BASE, LEGAL_LINKS, WEB_SITE_URL } from "../../config";
 import { mpRequest } from "../../utils/request";
 import { getRecords, type MpRecord } from "../../utils/storage";
 import "./index.scss";
@@ -28,7 +28,7 @@ export default function MinePage() {
     const res = await mpRequest<{ ok: boolean; platform: string; paymentMode: string }>("/health");
     Taro.hideLoading();
     if (res.ok) {
-      setHealth(`API 正常 · ${res.data.platform} · 支付: ${res.data.paymentMode}`);
+      setHealth(`API 正常 · ${res.data.platform} · 模式: ${res.data.paymentMode === "demo" ? "免费解锁" : res.data.paymentMode}`);
     } else {
       setHealth(`API 异常: ${res.error}`);
     }
@@ -41,7 +41,23 @@ export default function MinePage() {
   return (
     <View className="container">
       <Text className="hero-title">{SITE.name}</Text>
-      <Text className="hero-sub">小程序独立版 · 与网站互不影响</Text>
+      <Text className="hero-sub">个人小程序 · 详批免费体验</Text>
+
+      <View className="card notice-card">
+        <Text className="notice-title">关于支付</Text>
+        <Text className="notice-text">
+          微信规定：个人主体小程序无法接入微信支付。本小程序内 AI 详批已免费开放；网站版支持虎皮椒在线付款。
+        </Text>
+        <Button
+          className="btn-ghost mt"
+          onClick={() => {
+            Taro.setClipboardData({ data: WEB_SITE_URL });
+            Taro.showToast({ title: "网站地址已复制", icon: "success" });
+          }}
+        >
+          复制网站地址（付费用）
+        </Button>
+      </View>
 
       {records.length > 0 ? (
         <View className="card">

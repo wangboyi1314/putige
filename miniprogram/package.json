@@ -5,7 +5,8 @@
   "description": "菩提阁微信小程序（与 Web 版完全独立）",
   "scripts": {
     "build:weapp": "taro build --type weapp",
-    "dev:weapp": "npm run build:weapp -- --watch"
+    "dev:weapp": "npm run build:weapp -- --watch",
+    "open": "npm run build:weapp"
   },
   "browserslist": [
     "last 3 versions",

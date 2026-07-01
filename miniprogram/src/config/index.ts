@@ -8,6 +8,16 @@ export const SITE = {
 /** 后端 API 根地址（小程序专用 /api/mp/* 路由） */
 export const API_BASE = "https://putige-eh2.pages.dev";
 
+/** 网站地址（个人小程序不能收款，付费可走 H5） */
+export const WEB_SITE_URL = "https://putige-eh2.pages.dev";
+
+/**
+ * 解锁模式（个人主体小程序无法接入微信支付，请保持 free）
+ * - free：点击即解锁详批，不展示价格（适合个人小程序）
+ * - demo：演示下单流程，仍不扣款（后端 MP_PAYMENT_MODE=demo）
+ */
+export const UNLOCK_MODE: "free" | "demo" = "free";
+
 export const FEATURES = [
   { id: "lamp", title: "心愿明灯", desc: "写愿 · 点灯 · 留念", path: "/pages/lamp/index" },
   { id: "huangli", title: "今日黄历", desc: "宜忌时辰 · 完全免费", path: "/pages/huangli/index" },

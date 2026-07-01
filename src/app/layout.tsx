@@ -5,6 +5,7 @@ import { Footer } from "@/components/Footer";
 import { MobileNav } from "@/components/MobileNav";
 import { MeditationPlayerProvider } from "@/components/MeditationPlayerProvider";
 import { PaymentReturnHandler } from "@/components/PaymentReturnHandler";
+import { UmamiAnalytics } from "@/components/UmamiAnalytics";
 import { SiteBackground } from "@/components/SiteChrome";
 import { SITE_CONFIG } from "@/lib/config";
 
@@ -30,6 +31,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" className="h-full">
       <body className="min-h-full flex flex-col antialiased text-amber-50">
+        <UmamiAnalytics />
         <MeditationPlayerProvider>
           <PaymentReturnHandler />
           <SiteBackground />

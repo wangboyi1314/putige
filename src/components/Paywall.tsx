@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import { Interpretation } from "@/components/Interpretation";
 import { PRODUCTS, type ProductId } from "@/lib/payment";
@@ -11,6 +11,7 @@ import {
 } from "@/lib/paid-session";
 import { truncatePreview } from "@/lib/preview";
 import { parseGuardError } from "@/lib/interpret-api";
+import { trackEvent } from "@/lib/analytics";
 
 interface PaywallProps {
   productId: ProductId;
@@ -38,6 +39,7 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
   const [payChannel, setPayChannel] = useState<"wechat" | "alipay">("wechat");
 
   const product = PRODUCTS[productId];
+  const trackedPayments = useRef(new Set<string>());
 
   const isMobile =
     typeof window !== "undefined" &&
@@ -53,12 +55,20 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
   }
 
   const markUnlocked = useCallback(
-    (oid: string) => {
+    (oid: string, source: "paywall" | "return" = "paywall") => {
       savePaidOrder(productId, oid);
       setPaidOrderId(oid);
       setUnlocked(true);
       setShowPay(false);
       setPolling(false);
+      if (!trackedPayments.current.has(oid)) {
+        trackedPayments.current.add(oid);
+        trackEvent("payment_success", {
+          product_id: productId,
+          order_suffix: oid.slice(-8),
+          source,
+        });
+      }
       void onUnlock(oid);
     },
     [productId, onUnlock]
@@ -111,6 +121,11 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
   async function startPay(channel?: "wechat" | "alipay", jumpToCashier = false) {
     const activeChannel = channel ?? payChannel;
     if (channel) setPayChannel(channel);
+    trackEvent("unlock_click", {
+      product_id: productId,
+      price: product.price,
+      channel: activeChannel,
+    });
     setLoading(true);
     setError("");
     setErrorTip("");
@@ -128,6 +143,11 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
         const g = parseGuardError(data);
         setError(g.message);
         setErrorTip(g.tip || "");
+        trackEvent("payment_error", {
+          product_id: productId,
+          stage: "create",
+          status: res.status,
+        });
         return;
       }
 
@@ -140,6 +160,14 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
       const nextQrUrl = data.qrUrl ?? data.urlQrcode ?? data.wechatCodeUrl ?? data.alipayQrCode ?? null;
       setPayUrl(nextPayUrl);
       setQrUrl(nextQrUrl);
+
+      trackEvent("order_created", {
+        product_id: productId,
+        price: data.amount ?? product.price,
+        order_suffix: String(data.orderId).slice(-8),
+        demo_mode: data.demoMode ? 1 : 0,
+        channel: activeChannel,
+      });
 
       if (data.demoMode) {
         const confirmRes = await fetch("/api/payment/confirm", {
@@ -163,6 +191,11 @@ export function Paywall({ productId, previewContent, onUnlock, children }: Paywa
       const msg = e instanceof Error ? e.message : "支付失败，请重试";
       setError(msg);
       setShowPay(false);
+      trackEvent("payment_error", {
+        product_id: productId,
+        stage: "create",
+        message: msg.slice(0, 80),
+      });
     } finally {
       setLoading(false);
     }
